@@ -18,8 +18,8 @@ Empowering farmers with accessible, AI-driven tools to increase yields, reduce c
 
 ## 👨‍👩‍👧‍👦 Team Roles
 
-| Name | Role | Responsibilities |
-|------|------|------------------|
+| Name | Role |
+|------|------|
 | Joseph Sikwese | AI Engineer |
 | John Living-Proof Fowowe | Frontend Developer | 
 | Sichile Malonje | Backend & Integrations | 
