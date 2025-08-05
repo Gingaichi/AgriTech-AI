@@ -29,7 +29,7 @@ Empowering farmers with accessible, AI-driven tools to increase yields, reduce c
 ## Getting Started
 
 ```bash
-git clone https://github.com/your-username/AgriTech-AI.git
+git clone https://github.com/Gingaichi/AgriTech-AI.git
 cd AgriTech-AI
 
 
