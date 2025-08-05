@@ -21,7 +21,7 @@ Empowering farmers with accessible, AI-driven tools to increase yields, reduce c
 | Name | Role |
 |------|------|
 | Joseph Sikwese | AI Engineer |
-| John Living-Proof Fowowe | Frontend Developer | 
+| John-Livingproof Fowowe | Frontend Developer | 
 | Sichile Malonje | Backend & Integrations | 
 
 ---
