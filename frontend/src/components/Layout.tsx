@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import type { Chat } from '../utils/api';
+import { apiService } from '../utils/api';
 import logo from '/oak-icon.png'; // Adjust the path as necessary
 
 interface LayoutProps {
@@ -8,6 +11,45 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [loading, setLoading] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (isMenuOpen) {
+      loadChats();
+    }
+  }, [isMenuOpen]);
+
+  const loadChats = async () => {
+    try {
+      setLoading(true);
+      const chatHistory = await apiService.getChats();
+      setChats(chatHistory);
+    } catch (error) {
+      console.error('Error loading chats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatChatTime = (date: Date) => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const chatDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    
+    if (chatDate.getTime() === today.getTime()) {
+      return new Intl.DateTimeFormat('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(date);
+    } else {
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric'
+      }).format(date);
+    }
+  };
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -112,9 +154,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <nav className="h-full px-3 py-4 overflow-y-auto">
           <ul className="space-y-2">
             <li>
-              <a
-                href="#"
-                className="flex items-center p-2 text-gray-900 rounded-lg hover:bg-gray-100 group"
+              <Link
+                to="/"
+                className={`flex items-center p-2 rounded-lg group ${
+                  location.pathname === '/' 
+                    ? 'bg-blue-100 text-blue-600' 
+                    : 'text-gray-900 hover:bg-gray-100'
+                }`}
+                onClick={() => setIsMenuOpen(false)}
               >
                 <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
@@ -125,7 +172,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   />
                 </svg>
                 <span className="ml-3">Dashboard</span>
-              </a>
+              </Link>
             </li>
             <li>
               <a
@@ -176,6 +223,49 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </a>
             </li>
           </ul>
+
+          {/* Chat History Section */}
+          <div className="border-t border-gray-200 pt-4 mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Chat History
+              </h3>
+              {loading && (
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+              )}
+            </div>
+            
+            {chats.length === 0 && !loading ? (
+              <p className="text-xs text-gray-400 italic">No chat history yet</p>
+            ) : (
+              <div className="space-y-1 max-h-96 overflow-y-auto">
+                {chats.map((chat) => (
+                  <Link
+                    key={chat.id}
+                    to={`/chat/${chat.id}`}
+                    className={`block p-2 rounded-lg text-sm transition-colors ${
+                      location.pathname === `/chat/${chat.id}`
+                        ? 'bg-blue-100 text-blue-600'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <div className="truncate font-medium mb-1">
+                      {chat.title}
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span className="truncate flex-1">
+                        {chat.lastMessage.slice(0, 30)}...
+                      </span>
+                      <span className="ml-2 flex-shrink-0">
+                        {formatChatTime(chat.lastMessageTime)}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </nav>
       </aside>
 

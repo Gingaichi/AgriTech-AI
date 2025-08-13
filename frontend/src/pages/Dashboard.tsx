@@ -1,9 +1,24 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import ChatBox from '../components/ChatBox';
 import { TypingHeader } from '../components/TypingAnimated'
 import RecommendationsSection from '../components/Recommendation';
+import { apiService } from '../utils/api';
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
+
+  const handleSendMessage = async (message: string, images?: File[]) => {
+    try {
+      console.log('Creating new chat with message:', message, 'Images:', images);
+      const newChat = await apiService.createChat({ message, images });
+      // Navigate to the new chat page
+      navigate(`/chat/${newChat.id}`);
+    } catch (error) {
+      console.error('Error creating chat:', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -18,9 +33,7 @@ const Dashboard: React.FC = () => {
         <div className="col-span-1 md:col-span-2 lg:col-span-4">
           <ChatBox
             className="bg-white rounded-full p-4 hover:shadow-lg transition-shadow duration-200"
-            onSendMessage={(message, images) => {
-              console.log('Message sent:', message, 'Images:', images);
-            }}
+            onSendMessage={handleSendMessage}
           />
         </div>
       </div>
