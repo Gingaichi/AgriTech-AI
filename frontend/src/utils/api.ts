@@ -47,7 +47,7 @@ class ApiService {
     });
   }
 
-  // Generate mock AI response
+  // These are mock AI responsec(for testing chat interface)
   private generateAIResponse(userMessage: string): string {
     const responses = [
       "Based on your query, I recommend checking the soil moisture levels and adjusting irrigation accordingly.",
