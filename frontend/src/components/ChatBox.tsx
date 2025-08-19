@@ -69,7 +69,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
       )}
 
       {/* Main Chat Input */}
-      <div className="flex items-end p-3 space-x-3">
+      <div className="flex p-3 space-x-3">
         {/* Add Images Button */}
         <div className="relative">
           <input
@@ -83,10 +83,10 @@ const ChatBox: React.FC<ChatBoxProps> = ({
           />
           <button
             disabled={disabled}
-            className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+            className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
               disabled 
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                : 'bg-blue-500 hover:bg-blue-600 text-white'
+                : 'bg-green-500 hover:bg-green-600 text-white'
             }`}
             title="Add images"
           >
@@ -110,7 +110,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
             placeholder={placeholder}
             rows={1}
             disabled={disabled}
-            className={`w-full px-4 py-2 border border-gray-300 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-sm ${
+            className={`w-full px-4 py-2 border border-gray-300 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent placeholder-gray-500 text-sm ${
               disabled ? 'bg-gray-100 cursor-not-allowed' : ''
             }`}
             style={{
@@ -141,9 +141,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({
         <button
           onClick={handleSendMessage}
           disabled={(!message.trim() && selectedImages.length === 0) || disabled}
-          className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+          className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
             (message.trim() || selectedImages.length > 0) && !disabled
-              ? 'bg-blue-500 hover:bg-blue-600 text-white'
+              ? 'bg-green-500 hover:bg-green-600 text-white'
               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
           }`}
           title="Send message"
