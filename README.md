@@ -57,7 +57,7 @@ Empowering African farmers with accessible, AI-driven tools to increase yields, 
 | Name | Role | Expertise |
 |------|------|-----------|
 | **Joseph Sikwese** | AI Engineer | Machine Learning, Agricultural AI, Model Development |
-| **John Living-Proof Fowowe** | Frontend Developer | React, TypeScript, User Experience Design | 
+| **John-Livingproof Fowowe** | Frontend Developer | React, TypeScript, User Experience Design | 
 | **Sichile Malonje** | Backend & Integrations | API Development, Database Design, System Architecture |
 
 ## 🎮 Live Demo
@@ -87,7 +87,7 @@ Experience AgriTech-AI in action:
 3. **Knowledge Sharing**: Access accumulated agricultural wisdom
 4. **Continuous Learning**: AI improves responses based on farmer interactions
 
-## � Expected Outcomes
+## Expected Outcomes
 
 - **Increased Crop Yields**: 15-25% improvement through early disease detection
 - **Reduced Crop Losses**: 30-40% decrease in disease-related losses
