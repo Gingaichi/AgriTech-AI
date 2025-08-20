@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from "uuid";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from 'url';
+import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,6 +51,13 @@ db.serialize(() => {
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (chat_id) REFERENCES chats (id) ON DELETE CASCADE
   )`);
+
+  // Create suggested questions cache table
+  db.run(`CREATE TABLE IF NOT EXISTS suggested_questions_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    questions TEXT NOT NULL, -- JSON array of questions
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
 });
 
 // Helper function to convert images to base64
@@ -74,6 +82,374 @@ const getAIResponse = async (message) => {
     console.error("❌ Cohere API error:", error);
     return "⚠️ Error connecting to AI server.";
   }
+};
+
+// Helper function to generate suggested questions using Cohere
+const generateSuggestedQuestions = async () => {
+  try {
+    const prompt = `Generate exactly 12 unique agricultural questions that would be relevant for farmers in Malawi. 
+    The questions should cover various aspects of farming including:
+    - Crop planting and timing (maize, tobacco, groundnuts, soybean, cotton, cassava, sweet potato, rice, beans)
+    - Pest and disease management (especially fall armyworm, bollworm)
+    - Fertilizer and soil management
+    - Irrigation and water management
+    - Weather and climate considerations
+    - Post-harvest storage and processing
+    - Sustainable farming practices
+
+    Return only the questions, one per line, without numbering or bullet points.
+    Make the questions practical and actionable for smallholder farmers in Malawi.`;
+
+    const response = await cohere.chat({
+      model: "command-r",
+      message: prompt,
+      temperature: 0.8,
+    });
+
+    const questionsText = response.text.trim();
+    const questionsArray = questionsText
+      .split('\n')
+      .map(q => q.trim())
+      .filter(q => q.length > 0 && !q.match(/^\d+[\.\)]/)) // Remove numbered lines
+      .slice(0, 12); // Ensure we have exactly 12 questions
+
+    return questionsArray;
+  } catch (error) {
+    console.error("❌ Error generating suggested questions:", error);
+    // Fallback questions if API fails
+    return [
+      "What is the best time to plant maize in Malawi?",
+      "How can I protect my crops from fall armyworm?",
+      "What fertilizers work best for groundnuts in sandy soil?",
+      "How much water does tobacco need during dry season?",
+      "When should I harvest my maize for best yield?",
+      "How to prepare soil for cassava planting?",
+      "What are signs of nutrient deficiency in soybeans?",
+      "How to manage cotton bollworm naturally?",
+      "Best irrigation schedule for beans in dry season?",
+      "How to store maize properly after harvest?",
+      "What spacing is best for sweet potato ridges?",
+      "How to control weeds in rice fields organically?"
+    ];
+  }
+};
+
+// Helper function to get cached questions or generate new ones
+const getCachedQuestions = async () => {
+  return new Promise((resolve, reject) => {
+    // Check for cached questions from last 24 hours
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    
+    db.get(
+      "SELECT questions FROM suggested_questions_cache WHERE created_at > ? ORDER BY created_at DESC LIMIT 1",
+      [twentyFourHoursAgo],
+      async (err, row) => {
+        if (err) {
+          console.error("Database error:", err);
+          reject(err);
+          return;
+        }
+
+        if (row) {
+          // Return cached questions
+          resolve(JSON.parse(row.questions));
+        } else {
+          // Generate new questions and cache them
+          try {
+            const newQuestions = await generateSuggestedQuestions();
+            
+            // Store in cache
+            db.run(
+              "INSERT INTO suggested_questions_cache (questions) VALUES (?)",
+              [JSON.stringify(newQuestions)],
+              (err) => {
+                if (err) {
+                  console.error("Error caching questions:", err);
+                }
+              }
+            );
+            
+            // Clean old cache entries (keep only last 7 days)
+            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+            db.run("DELETE FROM suggested_questions_cache WHERE created_at < ?", [sevenDaysAgo]);
+            
+            resolve(newQuestions);
+          } catch (error) {
+            reject(error);
+          }
+        }
+      }
+    );
+  });
+};
+
+// Helper function to get base yield for crops (tons per hectare)
+const getBaseYield = (cropType) => {
+  const baseYields = {
+    'Maize': 3.5,
+    'Tobacco': 2.0,
+    'Groundnuts': 1.5,
+    'Soybean': 2.0,
+    'Cotton': 1.2,
+    'Cassava': 8.0,
+    'Sweet Potato': 6.0,
+    'Rice': 4.0,
+    'Beans': 1.2
+  };
+  return baseYields[cropType] || 2.0;
+};
+
+// Helper function to calculate yield factors based on field conditions
+const calculateYieldFactors = (fieldData, weatherData) => {
+  let factors = {
+    soilType: 1.0,
+    fertilizer: 1.0,
+    irrigation: 1.0,
+    weather: 1.0,
+    timing: 1.0
+  };
+  
+  let confidence = 0.8;
+  let riskLevel = 'medium';
+  
+  // Soil type factors
+  if (fieldData.soilType === 'Loamy') {
+    factors.soilType = 1.2;
+  } else if (fieldData.soilType === 'Clay') {
+    factors.soilType = 1.1;
+  } else if (fieldData.soilType === 'Sandy') {
+    factors.soilType = 0.9;
+  }
+  
+  // Fertilizer factors
+  if (fieldData.fertilizer === 'Organic') {
+    factors.fertilizer = 1.1;
+  } else if (fieldData.fertilizer === 'Chemical') {
+    factors.fertilizer = 1.3;
+  } else if (fieldData.fertilizer === 'Mixed') {
+    factors.fertilizer = 1.25;
+  } else {
+    factors.fertilizer = 0.8; // No fertilizer
+  }
+  
+  // Irrigation factors
+  if (fieldData.irrigation === 'Drip') {
+    factors.irrigation = 1.3;
+  } else if (fieldData.irrigation === 'Sprinkler') {
+    factors.irrigation = 1.2;
+  } else if (fieldData.irrigation === 'Flood') {
+    factors.irrigation = 1.1;
+  } else {
+    factors.irrigation = 0.85; // Rain-fed
+  }
+  
+  // Weather factors (if available)
+  if (weatherData && weatherData.daily) {
+    const avgPrecipitation = weatherData.daily.reduce((sum, day) => sum + day.precipitation, 0) / weatherData.daily.length;
+    const avgMaxTemp = weatherData.daily.reduce((sum, day) => sum + day.temperature.max, 0) / weatherData.daily.length;
+    
+    // Optimal precipitation for most crops: 3-5mm per day
+    if (avgPrecipitation >= 3 && avgPrecipitation <= 5) {
+      factors.weather = 1.1;
+    } else if (avgPrecipitation < 1) {
+      factors.weather = 0.7;
+      riskLevel = 'high';
+    } else if (avgPrecipitation > 8) {
+      factors.weather = 0.8;
+      riskLevel = 'medium-high';
+    }
+    
+    // Temperature considerations (optimal range varies by crop)
+    if (avgMaxTemp > 35) {
+      factors.weather *= 0.9; // Heat stress
+      riskLevel = 'medium-high';
+    } else if (avgMaxTemp < 20) {
+      factors.weather *= 0.95; // Cool weather
+    }
+  }
+  
+  // Timing factors based on planting date
+  if (fieldData.plantingDate) {
+    const plantingMonth = new Date(fieldData.plantingDate).getMonth();
+    // Optimal planting months for Malawi (November-January)
+    if (plantingMonth >= 10 || plantingMonth <= 0) {
+      factors.timing = 1.1;
+    } else if (plantingMonth >= 1 && plantingMonth <= 2) {
+      factors.timing = 1.05;
+    } else {
+      factors.timing = 0.9;
+      riskLevel = 'medium-high';
+    }
+  }
+  
+  const total = Object.values(factors).reduce((acc, factor) => acc * factor, 1);
+  
+  // Adjust confidence based on risk level
+  if (riskLevel === 'high') confidence = 0.6;
+  else if (riskLevel === 'medium-high') confidence = 0.7;
+  else if (total > 1.2) confidence = 0.9;
+  
+  return {
+    factors,
+    total,
+    confidence,
+    riskLevel
+  };
+};
+
+// Helper function to extract recommendations from AI analysis
+const extractRecommendations = (aiAnalysis) => {
+  // Simple extraction - in production, use more sophisticated NLP
+  const recommendations = [];
+  const lines = aiAnalysis.split('\n');
+  
+  for (const line of lines) {
+    if (line.toLowerCase().includes('recommend') || 
+        line.toLowerCase().includes('should') || 
+        line.toLowerCase().includes('apply') ||
+        line.toLowerCase().includes('use')) {
+      recommendations.push(line.trim());
+    }
+  }
+  
+  return recommendations.slice(0, 5); // Return top 5 recommendations
+};
+
+// Helper function to determine tip priority
+const determinePriority = (tipContent) => {
+  const urgentKeywords = ['immediately', 'urgent', 'critical', 'disease', 'pest', 'wilt', 'attack'];
+  const highKeywords = ['fertilizer', 'water', 'irrigation', 'harvest', 'planting'];
+  const mediumKeywords = ['maintenance', 'monitor', 'check', 'observe'];
+  
+  const lowerContent = tipContent.toLowerCase();
+  
+  if (urgentKeywords.some(keyword => lowerContent.includes(keyword))) {
+    return 'urgent';
+  } else if (highKeywords.some(keyword => lowerContent.includes(keyword))) {
+    return 'high';
+  } else if (mediumKeywords.some(keyword => lowerContent.includes(keyword))) {
+    return 'medium';
+  } else {
+    return 'low';
+  }
+};
+
+// Helper function to determine tip category
+const determineCategory = (tipContent) => {
+  const lowerContent = tipContent.toLowerCase();
+  
+  if (lowerContent.includes('pest') || lowerContent.includes('disease') || lowerContent.includes('spray')) {
+    return 'Pest Control';
+  } else if (lowerContent.includes('fertilizer') || lowerContent.includes('nutrient') || lowerContent.includes('compost')) {
+    return 'Nutrition';
+  } else if (lowerContent.includes('water') || lowerContent.includes('irrigation') || lowerContent.includes('drought')) {
+    return 'Water Management';
+  } else if (lowerContent.includes('harvest') || lowerContent.includes('storage') || lowerContent.includes('dry')) {
+    return 'Harvest';
+  } else if (lowerContent.includes('soil') || lowerContent.includes('tillage') || lowerContent.includes('organic matter')) {
+    return 'Soil Health';
+  } else if (lowerContent.includes('plant') || lowerContent.includes('seed') || lowerContent.includes('sowing')) {
+    return 'Planting';
+  } else {
+    return 'General';
+  }
+};
+
+// Helper function to get due dates for weekly tips
+const getWeeklyDueDate = (index) => {
+  const today = new Date();
+  const dueDate = new Date(today);
+  dueDate.setDate(today.getDate() + index + 1); // Spread tips across the week
+  return dueDate.toISOString().split('T')[0]; // Return YYYY-MM-DD format
+};
+
+// Helper function to generate crop-specific insights
+const generateCropInsights = async (fields) => {
+  const cropTypes = [...new Set(fields.map(f => f.cropType))];
+  const insights = [];
+  
+  for (const crop of cropTypes) {
+    const fieldsWithCrop = fields.filter(f => f.cropType === crop);
+    const totalArea = fieldsWithCrop.reduce((sum, field) => sum + (parseFloat(field.size) || 0), 0);
+    
+    // Generate crop-specific insight based on current season and crop type
+    const insight = {
+      crop,
+      totalArea,
+      fieldCount: fieldsWithCrop.length,
+      keyActions: getCropSpecificActions(crop),
+      riskFactors: getCropRiskFactors(crop),
+      expectedHarvest: calculateExpectedHarvest(crop, fieldsWithCrop)
+    };
+    
+    insights.push(insight);
+  }
+  
+  return insights;
+};
+
+// Helper function to get crop-specific actions
+const getCropSpecificActions = (crop) => {
+  const cropActions = {
+    'Maize': ['Monitor for fall armyworm', 'Side-dress with nitrogen', 'Check for stalk borers'],
+    'Tobacco': ['Sucker removal', 'Monitor for blue mold', 'Check leaf quality'],
+    'Groundnuts': ['Monitor for rosette virus', 'Check pod filling', 'Control leaf spot'],
+    'Soybean': ['Monitor for rust', 'Check nodulation', 'Control pod borers'],
+    'Cotton': ['Monitor for bollworm', 'Side-dress fertilizer', 'Check for aphids'],
+    'Cassava': ['Weeding around plants', 'Monitor for mosaic virus', 'Check tuber development'],
+    'Sweet Potato': ['Ridge maintenance', 'Monitor for weevils', 'Check vine health'],
+    'Rice': ['Water level management', 'Monitor for blast disease', 'Check tillering'],
+    'Beans': ['Monitor for bean fly', 'Support climbing varieties', 'Check pod formation']
+  };
+  
+  return cropActions[crop] || ['Monitor plant health', 'Check for pests', 'Maintain soil moisture'];
+};
+
+// Helper function to get crop risk factors
+const getCropRiskFactors = (crop) => {
+  const riskFactors = {
+    'Maize': ['Fall armyworm infestation', 'Drought stress', 'Stalk borer damage'],
+    'Tobacco': ['Blue mold disease', 'Hail damage', 'Curing barn fires'],
+    'Groundnuts': ['Rosette virus', 'Pod rot', 'Aflatoxin contamination'],
+    'Soybean': ['Rust disease', 'Pod borer', 'Drought during flowering'],
+    'Cotton': ['Bollworm attack', 'Aphid infestation', 'Irregular rainfall'],
+    'Cassava': ['Cassava mosaic virus', 'Mealybug infestation', 'Poor storage'],
+    'Sweet Potato': ['Sweet potato weevil', 'Virus diseases', 'Storage rot'],
+    'Rice': ['Blast disease', 'Poor water management', 'Bird damage'],
+    'Beans': ['Bean fly damage', 'Anthracnose disease', 'Drought stress']
+  };
+  
+  return riskFactors[crop] || ['Disease pressure', 'Pest damage', 'Weather stress'];
+};
+
+// Helper function to calculate expected harvest
+const calculateExpectedHarvest = (crop, fields) => {
+  const baseYield = getBaseYield(crop);
+  const totalArea = fields.reduce((sum, field) => sum + (parseFloat(field.size) || 0), 0);
+  const avgYieldFactor = 0.85; // Conservative estimate
+  
+  return {
+    estimatedYield: Math.round(baseYield * totalArea * avgYieldFactor * 100) / 100,
+    unit: 'tons',
+    harvestWindow: getHarvestWindow(crop)
+  };
+};
+
+// Helper function to get harvest window for crops
+const getHarvestWindow = (crop) => {
+  const harvestWindows = {
+    'Maize': 'April - June',
+    'Tobacco': 'March - June',
+    'Groundnuts': 'April - May',
+    'Soybean': 'April - May',
+    'Cotton': 'May - July',
+    'Cassava': 'Year-round (after 12 months)',
+    'Sweet Potato': 'March - June',
+    'Rice': 'April - June',
+    'Beans': 'March - April'
+  };
+  
+  return harvestWindows[crop] || 'Varies by variety';
 };
 
 // Create a new chat
@@ -153,39 +529,238 @@ app.post("/api/chats", upload.array('images'), async (req, res) => {
 
 // Get all chats
 app.get("/api/chats", (req, res) => {
-  const query = `
-    SELECT c.id, c.title, c.created_at,
-           m.content as last_message, m.timestamp as last_message_time
-    FROM chats c
-    LEFT JOIN chat_messages m ON c.id = m.chat_id
-    WHERE m.id = (
-      SELECT id FROM chat_messages 
-      WHERE chat_id = c.id 
-      ORDER BY timestamp DESC 
-      LIMIT 1
-    )
-    ORDER BY c.updated_at DESC
-  `;
-  
-  db.all(query, [], (err, rows) => {
-    if (err) {
-      console.error("Database error:", err);
-      return res.status(500).json({ error: "Failed to fetch chats" });
+  db.all(
+    "SELECT * FROM chats ORDER BY updated_at DESC",
+    [],
+    (err, rows) => {
+      if (err) {
+        console.error("Database error:", err);
+        return res.status(500).json({ error: "Failed to fetch chats" });
+      }
+      res.json(rows);
     }
-    
-    const chats = rows.map(row => ({
-      id: row.id,
-      title: row.title,
-      lastMessage: row.last_message || '',
-      lastMessageTime: row.last_message_time || row.created_at,
-      createdAt: row.created_at
-    }));
-    
-    res.json({ chats });
-  });
+  );
 });
 
-// Get specific chat with messages
+// Get suggested questions
+app.get("/api/suggested-questions", async (req, res) => {
+  try {
+    const questions = await getCachedQuestions();
+    res.json({ questions });
+  } catch (error) {
+    console.error("Error fetching suggested questions:", error);
+    res.status(500).json({ error: "Failed to fetch suggested questions" });
+  }
+});
+
+// Get weather forecast for specific coordinates
+app.get("/api/weather/:lat/:lon", async (req, res) => {
+  try {
+    const { lat, lon } = req.params;
+    
+    // Validate coordinates
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lon);
+    
+    if (isNaN(latitude) || isNaN(longitude)) {
+      return res.status(400).json({ error: "Invalid coordinates" });
+    }
+    
+    // Call Open-Meteo API for weather data
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,weathercode&timezone=Africa/Blantyre&forecast_days=7`;
+    
+    const response = await fetch(weatherUrl);
+    const weatherData = await response.json();
+    
+    if (!response.ok) {
+      throw new Error('Weather API error');
+    }
+    
+    // Format weather data for frontend
+    const formattedWeather = {
+      location: { latitude, longitude },
+      daily: weatherData.daily.time.map((date, index) => ({
+        date,
+        temperature: {
+          max: weatherData.daily.temperature_2m_max[index],
+          min: weatherData.daily.temperature_2m_min[index]
+        },
+        precipitation: weatherData.daily.precipitation_sum[index],
+        windSpeed: weatherData.daily.wind_speed_10m_max[index],
+        weatherCode: weatherData.daily.weathercode[index]
+      }))
+    };
+    
+    res.json(formattedWeather);
+  } catch (error) {
+    console.error("Error fetching weather data:", error);
+    res.status(500).json({ error: "Failed to fetch weather data" });
+  }
+});
+
+// Crop yield prediction with AI analysis
+app.post("/api/crop-yield-prediction", async (req, res) => {
+  try {
+    const { fieldData, weatherData, historicalYield } = req.body;
+    
+    // Validate required data
+    if (!fieldData || !fieldData.cropType || !fieldData.soilType) {
+      return res.status(400).json({ error: "Field data with crop type and soil type required" });
+    }
+    
+    // Create prompt for Cohere AI to analyze crop yield
+    const analysisPrompt = `You are an agricultural AI expert analyzing crop yield predictions for a farm in Malawi.
+
+Field Information:
+- Crop Type: ${fieldData.cropType}
+- Soil Type: ${fieldData.soilType}
+- Field Size: ${fieldData.size || 'Not specified'} hectares
+- Location: ${fieldData.location || 'Malawi'}
+- Planting Date: ${fieldData.plantingDate || 'Not specified'}
+- Fertilizer Used: ${fieldData.fertilizer || 'Not specified'}
+- Irrigation: ${fieldData.irrigation || 'Not specified'}
+
+${weatherData ? `Weather Forecast:
+Recent conditions: ${JSON.stringify(weatherData, null, 2)}` : ''}
+
+${historicalYield ? `Historical Yield Data:
+Previous yields: ${JSON.stringify(historicalYield, null, 2)}` : ''}
+
+Please provide a comprehensive analysis including:
+1. Predicted yield estimate (be specific with numbers if possible)
+2. Key factors affecting yield (positive and negative)
+3. Risk assessment (high/medium/low risk factors)
+4. Specific recommendations to improve yield
+5. Optimal timing for activities (fertilizer application, irrigation, harvest)
+
+Focus on practical advice for smallholder farmers in Malawi. Be specific about local conditions, pests, and best practices.`;
+
+    const response = await cohere.chat({
+      model: "command-r",
+      message: analysisPrompt,
+      temperature: 0.6,
+    });
+
+    // Parse AI response to extract structured data
+    const aiAnalysis = response.text.trim();
+    
+    // Generate mock yield prediction data based on field parameters
+    const baseYield = getBaseYield(fieldData.cropType);
+    const yieldFactors = calculateYieldFactors(fieldData, weatherData);
+    const predictedYield = baseYield * yieldFactors.total;
+    
+    const yieldPrediction = {
+      predictedYield: Math.round(predictedYield * 100) / 100,
+      confidence: yieldFactors.confidence,
+      factors: yieldFactors.factors,
+      analysis: aiAnalysis,
+      recommendations: extractRecommendations(aiAnalysis),
+      riskAssessment: yieldFactors.riskLevel,
+      generatedAt: new Date().toISOString()
+    };
+    
+    res.json(yieldPrediction);
+  } catch (error) {
+    console.error("Error generating crop yield prediction:", error);
+    res.status(500).json({ error: "Failed to generate crop yield prediction" });
+  }
+});
+
+// AI-powered recommendation engine
+app.post("/api/recommendations", async (req, res) => {
+  try {
+    const { fields, preferences, currentSeason } = req.body;
+    
+    if (!fields || !Array.isArray(fields) || fields.length === 0) {
+      return res.status(400).json({ error: "Field data array required" });
+    }
+    
+    // Create comprehensive prompt for personalized recommendations
+    const recommendationPrompt = `You are AgriMate, an expert agricultural advisor for smallholder farmers in Malawi. 
+    Generate 7 personalized weekly tips based on the following farm information:
+
+Farm Portfolio:
+${fields.map((field, index) => `
+Field ${index + 1}:
+- Name: ${field.name}
+- Crop: ${field.cropType}
+- Soil Type: ${field.soilType}
+- Size: ${field.size} hectares
+- Planting Date: ${field.plantingDate || 'Not specified'}
+- Last Fertilizer: ${field.lastFertilizer || 'Not specified'}
+- Irrigation: ${field.irrigation || 'Rain-fed'}
+- Location: ${field.location || 'Not specified'}
+`).join('')}
+
+Current Season: ${currentSeason || 'Not specified'}
+Farmer Preferences: ${preferences ? JSON.stringify(preferences) : 'Not specified'}
+
+Generate exactly 7 practical, actionable tips for this week. Each tip should:
+1. Be specific to the crops and conditions mentioned
+2. Include timing (when to do it)
+3. Be practical for smallholder farmers in Malawi
+4. Address different aspects: pest control, nutrition, irrigation, harvesting, soil health, etc.
+5. Consider local climate and seasonal patterns
+
+Format each tip as a single paragraph starting with the main action, followed by explanation and timing.
+Make tips diverse - don't repeat similar advice.
+Focus on immediate actions for the current week.`;
+
+    const response = await cohere.chat({
+      model: "command-r",
+      message: recommendationPrompt,
+      temperature: 0.7,
+    });
+
+    // Parse AI response into structured tips
+    const aiResponse = response.text.trim();
+    const tipParagraphs = aiResponse.split('\n\n').filter(tip => tip.trim().length > 0);
+    
+    // Convert to structured format
+    const weeklyTips = tipParagraphs.slice(0, 7).map((tip, index) => {
+      const cleanTip = tip.replace(/^\d+\.\s*/, '').trim(); // Remove numbering
+      
+      // Extract action (first sentence)
+      const sentences = cleanTip.split('. ');
+      const action = sentences[0] + (sentences[0].endsWith('.') ? '' : '.');
+      const description = sentences.slice(1).join('. ');
+      
+      // Determine priority and category based on content
+      const priority = determinePriority(cleanTip);
+      const category = determineCategory(cleanTip);
+      
+      return {
+        id: `tip_${Date.now()}_${index}`,
+        action,
+        description,
+        priority,
+        category,
+        completed: false,
+        dueDate: getWeeklyDueDate(index)
+      };
+    });
+    
+    // Generate crop-specific insights
+    const cropInsights = await generateCropInsights(fields);
+    
+    const recommendations = {
+      weeklyTips,
+      cropInsights,
+      generatedAt: new Date().toISOString(),
+      validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Valid for 1 week
+      farmSummary: {
+        totalFields: fields.length,
+        primaryCrops: [...new Set(fields.map(f => f.cropType))],
+        totalArea: fields.reduce((sum, field) => sum + (parseFloat(field.size) || 0), 0)
+      }
+    };
+    
+    res.json(recommendations);
+  } catch (error) {
+    console.error("Error generating recommendations:", error);
+    res.status(500).json({ error: "Failed to generate recommendations" });
+  }
+});// Get specific chat with messages
 app.get("/api/chat/:id", (req, res) => {
   const chatId = req.params.id;
   

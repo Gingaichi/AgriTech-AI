@@ -29,6 +29,62 @@ export interface SendMessageRequest {
   images?: File[];
 }
 
+export interface WeatherData {
+  location: { latitude: number; longitude: number };
+  daily: Array<{
+    date: string;
+    temperature: { max: number; min: number };
+    precipitation: number;
+    windSpeed: number;
+    weatherCode: number;
+  }>;
+}
+
+export interface YieldPrediction {
+  predictedYield: number;
+  confidence: number;
+  factors: Record<string, number>;
+  analysis: string;
+  recommendations: string[];
+  riskAssessment: string;
+  generatedAt: string;
+}
+
+export interface WeeklyTip {
+  id: string;
+  action: string;
+  description: string;
+  priority: 'urgent' | 'high' | 'medium' | 'low';
+  category: string;
+  completed: boolean;
+  dueDate: string;
+}
+
+export interface CropInsight {
+  crop: string;
+  totalArea: number;
+  fieldCount: number;
+  keyActions: string[];
+  riskFactors: string[];
+  expectedHarvest: {
+    estimatedYield: number;
+    unit: string;
+    harvestWindow: string;
+  };
+}
+
+export interface Recommendations {
+  weeklyTips: WeeklyTip[];
+  cropInsights: CropInsight[];
+  generatedAt: string;
+  validUntil: string;
+  farmSummary: {
+    totalFields: number;
+    primaryCrops: string[];
+    totalArea: number;
+  };
+}
+
 class ApiService {
   private baseUrl = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/api`; 
 
@@ -143,6 +199,104 @@ class ApiService {
     const aiMessage = this.formatMessageDates(result.aiMessage);
     
     return [userMessage, aiMessage];
+  }
+
+  // Get suggested questions
+  async getSuggestedQuestions(): Promise<string[]> {
+    console.log('API: Fetching suggested questions');
+    
+    const response = await fetch(`${this.baseUrl}/suggested-questions`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch suggested questions: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('API: Suggested questions fetched', result);
+    return result.questions;
+  }
+
+  // Get weather forecast for coordinates
+  async getWeatherForecast(latitude: number, longitude: number): Promise<WeatherData> {
+    console.log('API: Fetching weather forecast for', latitude, longitude);
+    
+    const response = await fetch(`${this.baseUrl}/weather/${latitude}/${longitude}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch weather forecast: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('API: Weather forecast fetched', result);
+    return result;
+  }
+
+  // Get crop yield prediction
+  async getCropYieldPrediction(
+    fieldData: any, 
+    weatherData?: WeatherData, 
+    historicalYield?: any
+  ): Promise<YieldPrediction> {
+    console.log('API: Getting crop yield prediction', { fieldData, weatherData, historicalYield });
+    
+    const response = await fetch(`${this.baseUrl}/crop-yield-prediction`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fieldData,
+        weatherData,
+        historicalYield
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get crop yield prediction: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('API: Crop yield prediction received', result);
+    return result;
+  }
+
+  // Get AI-powered recommendations
+  async getRecommendations(
+    fields: any[], 
+    preferences?: any, 
+    currentSeason?: string
+  ): Promise<Recommendations> {
+    console.log('API: Getting recommendations', { fields, preferences, currentSeason });
+    
+    const response = await fetch(`${this.baseUrl}/recommendations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fields,
+        preferences,
+        currentSeason
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get recommendations: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('API: Recommendations received', result);
+    return result;
   }
 
   // Helper method to convert timestamp strings to Date objects for chats
