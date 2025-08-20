@@ -559,6 +559,52 @@ app.get("/api/chats", (req, res) => {
   );
 });
 
+// Delete a specific chat
+app.delete("/api/chat/:chatId", (req, res) => {
+  const { chatId } = req.params;
+  
+  // Delete the chat and its messages (CASCADE will handle messages)
+  db.run("DELETE FROM chats WHERE id = ?", [chatId], function(err) {
+    if (err) {
+      console.error("Database error:", err);
+      return res.status(500).json({ error: "Failed to delete chat" });
+    }
+    
+    if (this.changes === 0) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+    
+    res.json({ success: true, message: "Chat deleted successfully" });
+  });
+});
+
+// Update chat title
+app.put("/api/chat/:chatId/title", (req, res) => {
+  const { chatId } = req.params;
+  const { title } = req.body;
+  
+  if (!title || title.trim().length === 0) {
+    return res.status(400).json({ error: "Title is required" });
+  }
+  
+  db.run(
+    "UPDATE chats SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    [title.trim(), chatId],
+    function(err) {
+      if (err) {
+        console.error("Database error:", err);
+        return res.status(500).json({ error: "Failed to update chat title" });
+      }
+      
+      if (this.changes === 0) {
+        return res.status(404).json({ error: "Chat not found" });
+      }
+      
+      res.json({ success: true, message: "Chat title updated successfully" });
+    }
+  );
+});
+
 // Get suggested questions
 app.get("/api/suggested-questions", async (req, res) => {
   try {

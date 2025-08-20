@@ -325,6 +325,43 @@ class ApiService {
     console.log('API: Clearing all chats not implemented in backend yet');
     // This would need to be implemented in the backend if needed
   }
+
+  // Delete a specific chat
+  async deleteChat(chatId: string): Promise<void> {
+    console.log('API: Deleting chat', chatId);
+    
+    const response = await fetch(`${this.baseUrl}/chat/${chatId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete chat: ${response.status}`);
+    }
+
+    console.log('API: Chat deleted successfully');
+  }
+
+  // Update chat title
+  async updateChatTitle(chatId: string, newTitle: string): Promise<void> {
+    console.log('API: Updating chat title', chatId, newTitle);
+    
+    const response = await fetch(`${this.baseUrl}/chat/${chatId}/title`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title: newTitle }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to update chat title: ${response.status}`);
+    }
+
+    console.log('API: Chat title updated successfully');
+  }
 }
 
 export const apiService = new ApiService();

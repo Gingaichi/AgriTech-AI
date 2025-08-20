@@ -13,6 +13,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [editingChat, setEditingChat] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
   const location = useLocation();
 
   useEffect(() => {
@@ -20,6 +23,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       loadChats();
     }
   }, [isMenuOpen]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (activeDropdown) {
+        setActiveDropdown(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activeDropdown]);
 
   const loadChats = async () => {
     try {
@@ -57,6 +74,50 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const toggleUserDropdown = () => {
     setIsUserDropdownOpen(!isUserDropdownOpen);
+  };
+
+  const toggleChatDropdown = (chatId: string) => {
+    setActiveDropdown(activeDropdown === chatId ? null : chatId);
+  };
+
+  const handleEditChat = (chat: Chat) => {
+    setEditingChat(chat.id);
+    setEditTitle(chat.title);
+    setActiveDropdown(null);
+  };
+
+  const handleSaveTitle = async (chatId: string) => {
+    if (!editTitle.trim()) return;
+    
+    try {
+      await apiService.updateChatTitle(chatId, editTitle.trim());
+      setChats(chats.map(chat => 
+        chat.id === chatId ? { ...chat, title: editTitle.trim() } : chat
+      ));
+      setEditingChat(null);
+      setEditTitle('');
+    } catch (error) {
+      console.error('Error updating chat title:', error);
+      alert('Failed to update chat title');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingChat(null);
+    setEditTitle('');
+  };
+
+  const handleDeleteChat = async (chatId: string) => {
+    if (!confirm('Are you sure you want to delete this chat?')) return;
+    
+    try {
+      await apiService.deleteChat(chatId);
+      setChats(chats.filter(chat => chat.id !== chatId));
+      setActiveDropdown(null);
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+      alert('Failed to delete chat');
+    }
   };
 
   return (
@@ -246,28 +307,116 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             ) : (
               <div className="space-y-1 max-h-96 overflow-y-auto">
                 {chats.map((chat) => (
-                  <Link
-                    key={chat.id}
-                    to={`/chat/${chat.id}`}
-                    className={`block p-2 rounded-lg text-sm transition-colors ${
-                      location.pathname === `/chat/${chat.id}`
-                        ? 'bg-emerald-100 text-emerald-600'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <div className="truncate font-medium mb-1">
-                      {chat.title}
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span className="truncate flex-1">
-                        {chat.lastMessage.slice(0, 30)}...
-                      </span>
-                      <span className="ml-2 flex-shrink-0">
-                        {formatChatTime(chat.lastMessageTime)}
-                      </span>
-                    </div>
-                  </Link>
+                  <div key={chat.id} className="relative group">
+                    {editingChat === chat.id ? (
+                      /* Edit Mode */
+                      <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200">
+                        <input
+                          type="text"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          className="w-full px-2 py-1 text-sm border border-emerald-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          autoFocus
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              handleSaveTitle(chat.id);
+                            } else if (e.key === 'Escape') {
+                              handleCancelEdit();
+                            }
+                          }}
+                        />
+                        <div className="flex gap-1 mt-2">
+                          <button
+                            onClick={() => handleSaveTitle(chat.id)}
+                            className="px-2 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Normal Mode */
+                      <div className="flex items-center group">
+                        <Link
+                          to={`/chat/${chat.id}`}
+                          className={`flex-1 p-2 rounded-lg text-sm transition-colors ${
+                            location.pathname === `/chat/${chat.id}`
+                              ? 'bg-emerald-100 text-emerald-600'
+                              : 'text-gray-700 hover:bg-gray-100'
+                          }`}
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <div className="truncate font-medium mb-1">
+                            {chat.title}
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <span className="truncate flex-1">
+                              {chat.lastMessage.slice(0, 30)}...
+                            </span>
+                            <span className="ml-2 flex-shrink-0">
+                              {formatChatTime(chat.lastMessageTime)}
+                            </span>
+                          </div>
+                        </Link>
+                        
+                        {/* Three Dots Menu */}
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              toggleChatDropdown(chat.id);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                            </svg>
+                          </button>
+                          
+                          {/* Dropdown Menu */}
+                          {activeDropdown === chat.id && (
+                            <div className="absolute right-0 top-8 w-32 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
+                              <div className="py-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleEditChat(chat);
+                                  }}
+                                  className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                >
+                                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDeleteChat(chat.id);
+                                  }}
+                                  className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                                >
+                                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
