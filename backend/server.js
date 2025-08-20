@@ -632,14 +632,56 @@ app.get("/api/weather/:lat/:lon", async (req, res) => {
       return res.status(400).json({ error: "Invalid coordinates" });
     }
     
-    // Call Open-Meteo API for weather data
+    // Enhanced weather API call with retry logic and timeout
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,weathercode&timezone=Africa/Blantyre&forecast_days=7`;
     
-    const response = await fetch(weatherUrl);
-    const weatherData = await response.json();
+    const fetchWithRetry = async (url, retries = 3, timeout = 10000) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          console.log(`Weather API attempt ${i + 1}/${retries} for coordinates: ${latitude}, ${longitude}`);
+          
+          // Create AbortController for timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), timeout);
+          
+          const response = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+              'User-Agent': 'AgriTech-AI/1.0 (Agricultural Assistant)',
+            }
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          
+          const data = await response.json();
+          console.log('✅ Weather data fetched successfully');
+          return data;
+          
+        } catch (error) {
+          console.log(`❌ Weather API attempt ${i + 1} failed:`, error.message);
+          
+          if (i === retries - 1) {
+            // Last attempt failed
+            throw error;
+          }
+          
+          // Wait before retry (exponential backoff)
+          const delay = Math.pow(2, i) * 1000; // 1s, 2s, 4s
+          console.log(`⏳ Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    };
     
-    if (!response.ok) {
-      throw new Error('Weather API error');
+    const weatherData = await fetchWithRetry(weatherUrl);
+    
+    // Validate response structure
+    if (!weatherData.daily || !weatherData.daily.time) {
+      throw new Error('Invalid weather data structure received');
     }
     
     // Format weather data for frontend
@@ -648,19 +690,41 @@ app.get("/api/weather/:lat/:lon", async (req, res) => {
       daily: weatherData.daily.time.map((date, index) => ({
         date,
         temperature: {
-          max: weatherData.daily.temperature_2m_max[index],
-          min: weatherData.daily.temperature_2m_min[index]
+          max: weatherData.daily.temperature_2m_max[index] || null,
+          min: weatherData.daily.temperature_2m_min[index] || null
         },
-        precipitation: weatherData.daily.precipitation_sum[index],
-        windSpeed: weatherData.daily.wind_speed_10m_max[index],
-        weatherCode: weatherData.daily.weathercode[index]
+        precipitation: weatherData.daily.precipitation_sum[index] || 0,
+        windSpeed: weatherData.daily.wind_speed_10m_max[index] || null,
+        weatherCode: weatherData.daily.weathercode[index] || null
       }))
     };
     
     res.json(formattedWeather);
+    
   } catch (error) {
-    console.error("Error fetching weather data:", error);
-    res.status(500).json({ error: "Failed to fetch weather data" });
+    console.error("🌤️ Weather API Error Details:", {
+      message: error.message,
+      type: error.type,
+      code: error.code,
+      errno: error.errno
+    });
+    
+    // Provide different error messages based on error type
+    let userMessage = "Failed to fetch weather data";
+    
+    if (error.code === 'ETIMEDOUT' || error.name === 'AbortError') {
+      userMessage = "Weather service is currently unavailable. Please try again later.";
+    } else if (error.message.includes('HTTP 5')) {
+      userMessage = "Weather service is temporarily down. Please try again in a few minutes.";
+    } else if (error.message.includes('Invalid coordinates')) {
+      userMessage = "Invalid location coordinates provided.";
+    }
+    
+    res.status(503).json({ 
+      error: userMessage,
+      details: "Weather data temporarily unavailable",
+      retryAfter: 30 // seconds
+    });
   }
 });
 

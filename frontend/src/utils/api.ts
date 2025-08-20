@@ -228,20 +228,49 @@ class ApiService {
   async getWeatherForecast(latitude: number, longitude: number): Promise<WeatherData> {
     console.log('API: Fetching weather forecast for', latitude, longitude);
     
-    const response = await fetch(`${this.baseUrl}/weather/${latitude}/${longitude}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    try {
+      const response = await fetch(`${this.baseUrl}/weather/${latitude}/${longitude}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Add timeout for frontend requests
+        signal: AbortSignal.timeout(15000) // 15 second timeout
+      });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch weather forecast: ${response.status}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+        
+        if (response.status === 503) {
+          throw new Error(`Weather service temporarily unavailable: ${errorMessage}`);
+        }
+        
+        throw new Error(`Failed to fetch weather forecast: ${errorMessage}`);
+      }
+
+      const result = await response.json();
+      console.log('API: Weather forecast fetched successfully', result);
+      return result;
+      
+    } catch (error) {
+      console.error('API: Weather forecast error:', error);
+      
+      // Enhance error messages for better user experience
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('Weather request timed out. Please check your internet connection and try again.');
+        }
+        
+        if (error.message.includes('Failed to fetch')) {
+          throw new Error('Unable to connect to weather service. Please check your internet connection.');
+        }
+        
+        throw error;
+      }
+      
+      throw new Error('Unknown error occurred while fetching weather data');
     }
-
-    const result = await response.json();
-    console.log('API: Weather forecast fetched', result);
-    return result;
   }
 
   // Get crop yield prediction
