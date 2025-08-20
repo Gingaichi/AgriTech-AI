@@ -1,0 +1,40 @@
+{
+  "name": "agritech-ai",
+  "version": "1.0.0",
+  "description": "AI-powered agricultural assistant for African farmers",
+  "scripts": {
+    "setup": "./setup-dev.sh",
+    "start": "./start-services.sh",
+    "dev": "./start-services.sh",
+    "install:all": "cd frontend && npm install && cd ../backend && npm install && cd ..",
+    "build:frontend": "cd frontend && npm run build",
+    "test:backend": "curl -X GET http://localhost:5000/api/chats",
+    "test:ai": "curl -X GET 'http://localhost:8000/api/get-weather/?location=Nairobi'",
+    "clean": "rm -rf frontend/node_modules backend/node_modules frontend/dist",
+    "reset:db": "cd backend && npm run init-db && cd ../ai_models && source ../.venv/bin/activate && python manage.py migrate"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Gingaichi/AgriTech-AI.git"
+  },
+  "keywords": [
+    "agriculture",
+    "ai",
+    "machine-learning",
+    "farming",
+    "africa",
+    "crop-disease",
+    "weather",
+    "chatbot"
+  ],
+  "authors": [
+    "Joseph Sikwese <AI Engineer>",
+    "John Living-Proof Fowowe <Frontend Developer>",
+    "Sichile Malonje <Backend & Integrations>"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0",
+    "python": ">=3.8.0"
+  }
+}

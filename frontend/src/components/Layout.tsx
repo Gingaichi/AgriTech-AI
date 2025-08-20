@@ -165,10 +165,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               >
                 <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 12L12 4l8 8M6 12v6a2 2 0 002 2h2a2 2 0 002-2v-4h0v4a2 2 0 002 2h2a2 2 0 002-2v-6"
                   />
                 </svg>
                 <span className="ml-3">Dashboard</span>
@@ -200,10 +200,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M3 7a2 2 0 012-2h3.172a2 2 0 011.414.586l1.828 1.828A2 2 0 0012.828 8H19a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"
+                    d="M4 8l4-4 4 4 4-4 4 4v12l-4-4-4 4-4-4-4 4V8z"
                   />
                 </svg>
-                <span className="ml-3">Farm Management</span>
+                <span className="ml-3">Field Management</span>
               </a>
             </li>
             <li>

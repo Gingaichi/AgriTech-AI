@@ -1,3 +1,6 @@
+Django==5.2.5
+djangorestframework==3.16.1
 requests>=2.28.1
 Pillow>=9.3.0
 python-dotenv>=0.19.2
+django-cors-headers>=4.0.0
