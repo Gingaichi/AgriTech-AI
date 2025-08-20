@@ -26,5 +26,6 @@ dist-ssr
 .vite
 .vite/*
 .env
+.env.example
 .venv/
 .github/

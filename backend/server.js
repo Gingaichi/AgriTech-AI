@@ -20,6 +20,9 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// Serve static files from the built frontend
+app.use(express.static(path.join(__dirname, 'public')));
+
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
@@ -29,8 +32,8 @@ const cohere = new CohereClient({
   token: process.env.COHERE_API_KEY,
 });
 
-// Initialize SQLite database (use the same one as Django)
-const dbPath = path.join(__dirname, '../ai_models/db.sqlite3');
+// Initialize SQLite database 
+const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../ai_models/db.sqlite3');
 const db = new sqlite3.Database(dbPath);
 
 // Create chat tables if they don't exist
@@ -944,6 +947,25 @@ app.post("/api/chat", async (req, res) => {
   res.json({ reply });
 });
 
-app.listen(5000, () =>
-  console.log("✅ AgriTech AI server running on http://localhost:5000")
+// Health check endpoint
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "healthy", 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// Serve frontend for all non-API routes (SPA routing)
+app.get("*", (req, res) => {
+  if (!req.path.startsWith("/api")) {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  } else {
+    res.status(404).json({ error: "API endpoint not found" });
+  }
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () =>
+  console.log(`✅ AgriTech AI server running on http://localhost:${PORT}`)
 );

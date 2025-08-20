@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import type { Chat } from '../utils/api';
 import { apiService } from '../utils/api';
-import logo from '/oak-icon.png'; // Adjust the path as necessary
+import logo from '../assets/oak-icon.png';
 
 interface LayoutProps {
   children: React.ReactNode;

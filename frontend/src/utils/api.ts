@@ -86,7 +86,9 @@ export interface Recommendations {
 }
 
 class ApiService {
-  private baseUrl = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/api`; 
+  private baseUrl = import.meta.env.VITE_BACKEND_URL 
+    ? `${import.meta.env.VITE_BACKEND_URL}/api`
+    : '/api'; // In production, use relative path since frontend and backend are served from same domain 
 
   // Create a new chat
   async createChat(request: CreateChatRequest): Promise<Chat> {

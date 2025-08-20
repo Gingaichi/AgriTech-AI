@@ -19,7 +19,7 @@ const AIPredictions: React.FC = () => {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [fields, setFields] = useState<Field[]>([]);
   const [selectedField, setSelectedField] = useState<string>('all');
-  const [loading, setLoading] = useState(false);
+  const [_loading, _setLoading] = useState(false);
 
   // Load fields and recommendations on component mount
   useEffect(() => {
