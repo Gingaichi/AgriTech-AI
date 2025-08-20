@@ -138,7 +138,8 @@ class ApiService {
     console.log('API: Chats fetched', result);
     
     // Convert timestamp strings to Date objects
-    const chats = result.chats.map((chat: any) => this.formatChatDates(chat));
+    // Backend returns array directly, not wrapped in { chats: [...] }
+    const chats = result.map((chat: any) => this.formatChatDates(chat));
     return chats;
   }
 
@@ -302,9 +303,11 @@ class ApiService {
   // Helper method to convert timestamp strings to Date objects for chats
   private formatChatDates(chat: any): Chat {
     return {
-      ...chat,
-      lastMessageTime: new Date(chat.lastMessageTime),
-      createdAt: new Date(chat.createdAt),
+      id: chat.id,
+      title: chat.title,
+      lastMessage: '', // Backend doesn't provide this in list view
+      lastMessageTime: new Date(chat.updated_at || chat.updatedAt),
+      createdAt: new Date(chat.created_at || chat.createdAt),
       messages: chat.messages ? chat.messages.map((msg: any) => this.formatMessageDates(msg)) : []
     };
   }

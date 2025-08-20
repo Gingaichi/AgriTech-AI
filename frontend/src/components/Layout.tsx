@@ -67,7 +67,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Left side - Hamburger menu */}
           <button
             onClick={toggleMenu}
-            className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             aria-label="Toggle menu"
           >
             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -89,7 +89,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Right side - Notifications and User */}
           <div className="flex items-center space-x-4">
             {/* Notification bell */}
-            <button className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500">
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   strokeLinecap="round"
@@ -104,10 +104,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <div className="relative">
               <button
                 onClick={toggleUserDropdown}
-                className="flex items-center p-2 rounded-full text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex items-center p-2 rounded-full text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 aria-label="User menu"
               >
-                <div className="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center">
+                <div className="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center">
                   <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
                       strokeLinecap="round"
@@ -158,7 +158,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 to="/"
                 className={`flex items-center p-2 rounded-lg group ${
                   location.pathname === '/' 
-                    ? 'bg-blue-100 text-blue-600' 
+                    ? 'bg-emerald-100 text-emerald-600' 
                     : 'text-gray-900 hover:bg-gray-100'
                 }`}
                 onClick={() => setIsMenuOpen(false)}
@@ -179,7 +179,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 to="/ai-predictions"
                 className={`flex items-center p-2 rounded-lg group ${
                   location.pathname === '/ai-predictions' 
-                    ? 'bg-blue-100 text-blue-600' 
+                    ? 'bg-emerald-100 text-emerald-600' 
                     : 'text-gray-900 hover:bg-gray-100'
                 }`}
                 onClick={() => setIsMenuOpen(false)}
@@ -200,7 +200,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 to="/field-management"
                 className={`flex items-center p-2 rounded-lg group ${
                   location.pathname === '/field-management' 
-                    ? 'bg-blue-100 text-blue-600' 
+                    ? 'bg-emerald-100 text-emerald-600' 
                     : 'text-gray-900 hover:bg-gray-100'
                 }`}
                 onClick={() => setIsMenuOpen(false)}
@@ -225,9 +225,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 Chat History
               </h3>
               {loading && (
-                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-emerald-400"></div>
               )}
             </div>
+            
+            {/* New Chat Button */}
+            <Link
+              to="/"
+              className="flex items-center justify-center w-full mb-3 px-3 py-2 text-sm font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Start New Chat
+            </Link>
             
             {chats.length === 0 && !loading ? (
               <p className="text-xs text-gray-400 italic">No chat history yet</p>
@@ -239,7 +251,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     to={`/chat/${chat.id}`}
                     className={`block p-2 rounded-lg text-sm transition-colors ${
                       location.pathname === `/chat/${chat.id}`
-                        ? 'bg-blue-100 text-blue-600'
+                        ? 'bg-emerald-100 text-emerald-600'
                         : 'text-gray-700 hover:bg-gray-100'
                     }`}
                     onClick={() => setIsMenuOpen(false)}

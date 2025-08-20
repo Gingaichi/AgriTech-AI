@@ -83,10 +83,10 @@ const ChatBox: React.FC<ChatBoxProps> = ({
           />
           <button
             disabled={disabled}
-            className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+            className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
               disabled 
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                : 'bg-green-500 hover:bg-green-600 text-white'
+                : 'bg-emerald-500 hover:bg-emerald-600 text-white'
             }`}
             title="Add images"
           >
@@ -110,13 +110,18 @@ const ChatBox: React.FC<ChatBoxProps> = ({
             placeholder={placeholder}
             rows={1}
             disabled={disabled}
-            className={`w-full px-4 py-2 border border-gray-300 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent placeholder-gray-500 text-sm ${
+            className={`w-full px-4 py-2 border border-gray-300 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder-gray-500 text-sm ${
               disabled ? 'bg-gray-100 cursor-not-allowed' : ''
             }`}
             style={{
               minHeight: '40px',
               maxHeight: '120px',
               overflowY: 'auto'
+            }}
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = 'auto';
+              target.style.height = Math.min(target.scrollHeight, 120) + 'px';
             }}
           />
         </div>
@@ -141,9 +146,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({
         <button
           onClick={handleSendMessage}
           disabled={(!message.trim() && selectedImages.length === 0) || disabled}
-          className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+          className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
             (message.trim() || selectedImages.length > 0) && !disabled
-              ? 'bg-green-500 hover:bg-green-600 text-white'
+              ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
           }`}
           title="Send message"

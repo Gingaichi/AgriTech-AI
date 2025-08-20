@@ -479,4 +479,3 @@ DATABASES = {
 ---
 
 **Let's code :)**
-
