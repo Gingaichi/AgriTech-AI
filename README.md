@@ -63,12 +63,6 @@ Empowering African farmers with accessible, AI-driven tools to increase yields, 
 | **John-Livingproof Fowowe** | Frontend Developer | React, TypeScript, User Experience Design | 
 | **Sichile Malonje** | Backend & Integrations | API Development, Database Design, System Architecture |
 
-## 🎮 Live Demo
-
-Experience AgriTech-AI in action:
-- **Web Application**: [Coming Soon - Demo Link]
-- **API Documentation**: [Available after deployment]
-- **Feature Preview**: [Screenshots and videos]
 
 ## 🌟 Use Cases
 
@@ -118,36 +112,9 @@ Experience AgriTech-AI in action:
 - 💰 Market price forecasting
 - 🎓 Educational content platform
 
-## 🏆 Awards & Recognition
-
-- **Innovation Challenge Winner**: [Award details]
-- **Agricultural Technology Grant**: [Grant information]
-- **Community Impact Recognition**: [Recognition details]
-
-## 📞 Contact & Support
-
-- **Email**: [team@agritech-ai.com]
-- **Website**: [www.agritech-ai.com]
-- **Social Media**: [Links to social platforms]
-- **Support**: [support@agritech-ai.com]
-
-## 🤝 Partnerships
-
-We collaborate with:
-- **Agricultural Research Institutions**: For crop science expertise
-- **Technology Partners**: Plant.ID, Cohere AI, Open-Meteo
-- **NGOs & Development Organizations**: For farmer outreach
-- **Government Agencies**: For policy alignment and support
-
-## 📄 License
-
-This project is licensed under the MIT License - promoting open source agricultural innovation.
-
----
-
-**For technical documentation, development setup, and contribution guidelines, see [DEVELOPMENT.md](DEVELOPMENT.md)**
 
 **Built with ❤️ for African farmers by the AgriTech-AI team**
+
 
 
 
