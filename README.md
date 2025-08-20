@@ -2,6 +2,9 @@
 
 **AgriTech-AI** is an AI-powered agricultural assistant built to support smallholder farmers and extension workers across Africa. It combines machine learning, weather forecasting, and a multilingual chatbot to provide personalized and actionable insights for improving farming outcomes.
 
+Visit AgriTech-AI at:
+https://agritech-ai-0lb7.onrender.com/
+
 ## 💡 Key Features
 
 - 🧠 **AI Crop Disease Detection** — Diagnose crop diseases through image recognition using Plant.ID technology
@@ -145,5 +148,6 @@ This project is licensed under the MIT License - promoting open source agricultu
 **For technical documentation, development setup, and contribution guidelines, see [DEVELOPMENT.md](DEVELOPMENT.md)**
 
 **Built with ❤️ for African farmers by the AgriTech-AI team**
+
 
 
