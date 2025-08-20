@@ -1,27 +1,50 @@
 # Multi-stage Dockerfile for AgriTech-AI
+
+# -----------------------------
 # Stage 1: Build Frontend
+# -----------------------------
 FROM node:18-alpine AS frontend-builder
 
 WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci 
 
+# Copy dependency files and install all deps (including dev)
+COPY frontend/package*.json ./
+RUN npm ci
+
+# Copy source code and build
 COPY frontend/ .
 RUN npm run build
 
-# Stage 2: Build Backend and Final Image
+
+# -----------------------------
+# Stage 2: Build Backend
+# -----------------------------
+FROM node:18-alpine AS backend-builder
+
+WORKDIR /app/backend
+
+# Copy dependency files and install all deps (including dev, if backend build tools are needed)
+COPY backend/package*.json ./
+RUN npm ci
+
+# Copy backend source code
+COPY backend/ .
+
+# -----------------------------
+# Stage 3: Final Runtime Image
+# -----------------------------
 FROM node:18-alpine AS backend
 
 WORKDIR /app
 
-# Install backend dependencies
+# Install only production dependencies for backend
 COPY backend/package*.json ./
 RUN npm ci --only=production
 
-# Copy backend source
-COPY backend/ .
+# Copy backend source (excluding node_modules)
+COPY --from=backend-builder /app/backend . 
 
-# Copy built frontend
+# Copy built frontend into backend public folder
 COPY --from=frontend-builder /app/frontend/dist ./public
 
 # Create database directory
