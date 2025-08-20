@@ -1,6 +1,6 @@
 # 🛠️ AgriTech-AI Development Guide
 
-This guide contains all the technical details for developers working on AgriTech-AI.
+This guide contains all the technical details for you guys to work with & update as needed.
 
 ## 🏗️ Architecture Overview
 
@@ -109,8 +109,8 @@ VITE_BACKEND_URL=http://localhost:5000
 
 ### 🔑 Getting API Keys
 
-1. **Plant.ID API**: Sign up at [plant.id](https://plant.id) for crop disease detection
-2. **Cohere AI**: Get your API key from [cohere.ai](https://cohere.ai) for chat functionality
+1. **Plant.ID API**: from Jihoon
+2. **Cohere AI**: from Gingaichi
 
 ---
 
@@ -478,4 +478,5 @@ DATABASES = {
 
 ---
 
-**Happy Coding! 🚀**
+**Let's code :)**
+
