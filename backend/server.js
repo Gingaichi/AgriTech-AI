@@ -1353,7 +1353,11 @@ app.get("/api/health", (req, res) => {
   res.json({ 
     status: "healthy", 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    services: {
+      backend: "running",
+      ai_models: process.env.AI_MODELS_URL || "disabled"
+    }
   });
 });
 

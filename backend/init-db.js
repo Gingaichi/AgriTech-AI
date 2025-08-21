@@ -5,8 +5,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Initialize SQLite database (use the same one as Django)
-const dbPath = path.join(__dirname, '../ai_models/db.sqlite3');
+// Initialize SQLite database (use the same one as Django or environment path)
+const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../ai_models/db.sqlite3');
 const db = new sqlite3.Database(dbPath);
 
 console.log('Initializing chat tables in SQLite database...');

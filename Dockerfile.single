@@ -14,6 +14,8 @@ RUN npm ci
 
 # Copy source and build
 COPY frontend/ .
+# Set backend URL for production build
+ENV VITE_BACKEND_URL=https://agritech-ai-0lb7.onrender.com
 RUN npm run build
 
 # -----------------------------
@@ -30,7 +32,8 @@ RUN apk add --no-cache \
     musl-dev \
     python3-dev \
     nodejs \
-    npm
+    npm \
+    sqlite
 
 # Setup Python environment for Django AI Models
 COPY ai_models/requirements.txt /app/ai_models/
@@ -47,13 +50,33 @@ COPY ai_models/ /app/ai_models/
 COPY backend/ /app/backend/
 COPY --from=frontend-builder /app/frontend/dist /app/backend/public
 
-# Copy startup script
-COPY start-unified.sh /app/start.sh
-RUN chmod +x /app/start.sh
+# Create shared data directory and set permissions
+RUN mkdir -p /app/data && chmod 755 /app/data
 
-# Create shared data directory
-RUN mkdir -p /app/data
+# Initialize databases
+WORKDIR /app/ai_models
+RUN python manage.py migrate --settings=ai_models_backend.settings
+WORKDIR /app/backend
+RUN npm install sqlite3 && node init-db.js
 
+WORKDIR /app
+
+# Create inline startup script
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'echo \"Starting AgriTech-AI services...\"' >> /app/start.sh && \
+    echo 'cd /app/ai_models && python manage.py runserver 0.0.0.0:8000 &' >> /app/start.sh && \
+    echo 'DJANGO_PID=$!' >> /app/start.sh && \
+    echo 'echo \"Django AI Models started on port 8000 (PID: $DJANGO_PID)\"' >> /app/start.sh && \
+    echo 'sleep 5' >> /app/start.sh && \
+    echo 'cd /app/backend && node server.js &' >> /app/start.sh && \
+    echo 'NODE_PID=$!' >> /app/start.sh && \
+    echo 'echo \"Node.js Backend started on port $PORT (PID: $NODE_PID)\"' >> /app/start.sh && \
+    echo 'wait $NODE_PID' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV DJANGO_SETTINGS_MODULE=ai_models_backend.settings
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV DJANGO_SETTINGS_MODULE=ai_models_backend.settings
@@ -66,7 +89,7 @@ ENV AI_MODELS_URL=http://localhost:8000
 EXPOSE 5000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD curl -f http://localhost:5000/api/health || exit 1
 
 # Start both services

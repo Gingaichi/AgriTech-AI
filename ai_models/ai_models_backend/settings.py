@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,12 +21,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-+4&t%w81d5)tqm%f270e3w5y+7$6_2fc(av50l@l-rftj^86@c'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-+4&t%w81d5)tqm%f270e3w5y+7$6_2fc(av50l@l-rftj^86@c')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'agritech-ai-0lb7.onrender.com']
+ALLOWED_HOSTS = [
+    'localhost', 
+    '127.0.0.1',
+    '0.0.0.0',
+    'agritech-ai-0lb7.onrender.com'
+]
 
 
 # Application definition
@@ -79,7 +85,7 @@ WSGI_APPLICATION = 'ai_models_backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': os.environ.get('DATABASE_PATH', BASE_DIR / 'db.sqlite3'),
     }
 }
 
@@ -134,4 +140,24 @@ CORS_ALLOWED_ORIGINS = [
     "https://agritech-ai-0lb7.onrender.com",
 ]
 
-CORS_ALLOW_CREDENTIALS = True
+# Allow all origins in development
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    # Production CORS settings
+    CORS_ALLOW_CREDENTIALS = True
+    CORS_ALLOWED_HEADERS = [
+        'accept',
+        'accept-encoding',
+        'authorization',
+        'content-type',
+        'dnt',
+        'origin',
+        'user-agent',
+        'x-csrftoken',
+        'x-requested-with',
+    ]
+
+# Static files configuration for production
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
