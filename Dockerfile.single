@@ -48,10 +48,14 @@ WORKDIR /app
 # Copy all source code
 COPY ai_models/ /app/ai_models/
 COPY backend/ /app/backend/
+COPY start-unified.sh /app/
 COPY --from=frontend-builder /app/frontend/dist /app/backend/public
 
 # Create shared data directory and set permissions
 RUN mkdir -p /app/data && chmod 755 /app/data
+
+# Make startup script executable
+RUN chmod +x /app/start-unified.sh
 
 # Initialize databases
 WORKDIR /app/ai_models
@@ -60,19 +64,6 @@ WORKDIR /app/backend
 RUN npm install sqlite3 && node init-db.js
 
 WORKDIR /app
-
-# Create inline startup script
-RUN echo '#!/bin/sh' > /app/start.sh && \
-    echo 'echo \"Starting AgriTech-AI services...\"' >> /app/start.sh && \
-    echo 'cd /app/ai_models && python manage.py runserver 0.0.0.0:8000 &' >> /app/start.sh && \
-    echo 'DJANGO_PID=$!' >> /app/start.sh && \
-    echo 'echo \"Django AI Models started on port 8000 (PID: $DJANGO_PID)\"' >> /app/start.sh && \
-    echo 'sleep 5' >> /app/start.sh && \
-    echo 'cd /app/backend && node server.js &' >> /app/start.sh && \
-    echo 'NODE_PID=$!' >> /app/start.sh && \
-    echo 'echo \"Node.js Backend started on port $PORT (PID: $NODE_PID)\"' >> /app/start.sh && \
-    echo 'wait $NODE_PID' >> /app/start.sh && \
-    chmod +x /app/start.sh
 
 # Set environment variables
 ENV PYTHONPATH=/app
@@ -93,4 +84,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD curl -f http://localhost:5000/api/health || exit 1
 
 # Start both services
-CMD ["/app/start.sh"]
+CMD ["/app/start-unified.sh"]

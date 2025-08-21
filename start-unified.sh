@@ -1,6 +1,11 @@
 #!/bin/sh
 set -e
 
+# Set environment variables
+export PYTHONPATH=/app
+export DJANGO_SETTINGS_MODULE=ai_models_backend.settings
+export DATABASE_PATH=${DATABASE_PATH:-/app/data/db.sqlite3}
+
 # Initialize databases
 echo "Initializing Django database..."
 cd /app/ai_models && python manage.py migrate
@@ -20,4 +25,4 @@ sleep 5
 # Start Node.js backend in foreground
 echo "Starting Node.js backend..."
 cd /app/backend
-exec npm start
+exec node server.js
