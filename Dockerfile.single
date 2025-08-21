@@ -1,0 +1,73 @@
+# Unified Dockerfile for AgriTech-AI (Render Deployment)
+# Runs both Django AI models and Node.js backend in single container
+
+# -----------------------------
+# Stage 1: Build Frontend
+# -----------------------------
+FROM node:18-alpine AS frontend-builder
+
+WORKDIR /app/frontend
+
+# Copy dependency files and install
+COPY frontend/package*.json ./
+RUN npm ci
+
+# Copy source and build
+COPY frontend/ .
+RUN npm run build
+
+# -----------------------------
+# Stage 2: Final Runtime with Both Services
+# -----------------------------
+FROM python:3.11-alpine
+
+WORKDIR /app
+
+# Install system dependencies for both Python and Node.js
+RUN apk add --no-cache \
+    curl \
+    gcc \
+    musl-dev \
+    python3-dev \
+    nodejs \
+    npm
+
+# Setup Python environment for Django AI Models
+COPY ai_models/requirements.txt /app/ai_models/
+RUN pip install --no-cache-dir -r /app/ai_models/requirements.txt
+
+# Setup Node.js environment for backend
+COPY backend/package*.json /app/backend/
+WORKDIR /app/backend
+RUN npm ci --only=production
+WORKDIR /app
+
+# Copy all source code
+COPY ai_models/ /app/ai_models/
+COPY backend/ /app/backend/
+COPY --from=frontend-builder /app/frontend/dist /app/backend/public
+
+# Copy startup script
+COPY start-unified.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Create shared data directory
+RUN mkdir -p /app/data
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV DJANGO_SETTINGS_MODULE=ai_models_backend.settings
+ENV NODE_ENV=production
+ENV PORT=5000
+ENV DATABASE_PATH=/app/data/db.sqlite3
+ENV AI_MODELS_URL=http://localhost:8000
+
+# Expose main port (Node.js serves frontend, proxies to Django)
+EXPOSE 5000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost:5000/api/health || exit 1
+
+# Start both services
+CMD ["/app/start.sh"]

@@ -4,8 +4,7 @@ services:
     runtime: docker
     plan: starter
     region: oregon
-    buildCommand: docker build -t agritech-ai .
-    startCommand: npm start
+    dockerfilePath: ./Dockerfile.single
     envVars:
       - key: NODE_ENV
         value: production
@@ -13,6 +12,8 @@ services:
         value: 5000
       - key: DATABASE_PATH
         value: /app/data/db.sqlite3
+      - key: AI_MODELS_URL
+        value: http://localhost:8000
       - key: COHERE_API_KEY
         sync: false  # Set this in Render dashboard
       - key: PLANTID_API_KEY
