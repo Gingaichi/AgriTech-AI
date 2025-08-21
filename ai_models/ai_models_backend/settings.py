@@ -129,6 +129,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:5000",  # Add this for local backend
+    "http://127.0.0.1:5000",
     "https://agritech-ai-0lb7.onrender.com",
 ]
 
