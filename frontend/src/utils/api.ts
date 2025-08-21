@@ -390,7 +390,7 @@ class ApiService {
     
     try {
       const formData = new FormData();
-      images.forEach((image, index) => {
+      images.forEach((image) => {
         formData.append(`images`, image);
       });
       formData.append('crop_type', cropType);

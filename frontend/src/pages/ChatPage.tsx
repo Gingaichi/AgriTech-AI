@@ -27,7 +27,7 @@ const ChatPage: React.FC = () => {
   }, [chatId]);
 
   const handleOptimisticChat = async () => {
-    const { initialMessage, isStreaming } = location.state as any;
+    const { initialMessage } = location.state as any;
     
     try {
       // Create optimistic UI immediately
