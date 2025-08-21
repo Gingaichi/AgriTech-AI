@@ -11,19 +11,68 @@ import { apiService } from '../utils/api';
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
-  const handleSendMessage = async (message: string, images?: File[]) => {
+  const handleSendMessage = async (message: string, images?: File[], useAdvancedAnalysis?: boolean) => {
     try {
-      console.log('Creating new chat with message:', message, 'Images:', images);
-      const newChat = await apiService.createChat({ message, images });
-      // Navigate to the new chat page
-      navigate(`/chat/${newChat.id}`);
+      console.log('Creating new chat with message:', message, 'Images:', images, 'Advanced Analysis:', useAdvancedAnalysis);
+      
+      // If advanced analysis is requested and images are provided
+      if (useAdvancedAnalysis && images && images.length > 0) {
+        try {
+          // First, perform advanced image analysis
+          const analysisResult = await apiService.analyzeImage(images, 'maize');
+          
+          // Create a new chat with enhanced message that includes analysis results
+          const enhancedMessage = message.trim() 
+            ? `${message}\n\n[Advanced Analysis Results]\n${JSON.stringify(analysisResult.analysis, null, 2)}`
+            : `[Advanced Image Analysis]\n${JSON.stringify(analysisResult.analysis, null, 2)}`;
+          
+          const newChat = await apiService.createChat({ 
+            message: enhancedMessage, 
+            images 
+          });
+          
+          navigate(`/chat/${newChat.id}`);
+          
+        } catch (analysisError) {
+          console.error('Advanced analysis failed, falling back to regular chat:', analysisError);
+          
+          // Fallback to regular chat creation if advanced analysis fails
+          const fallbackMessage = message.trim() 
+            ? `${message}\n\n[Note: Advanced analysis was requested but is currently unavailable. Please analyze these crop images and provide recommendations.]`
+            : '[Note: Advanced analysis was requested but is currently unavailable. Please analyze these crop images and provide recommendations.]';
+          
+          const newChat = await apiService.createChat({ 
+            message: fallbackMessage, 
+            images 
+          });
+          
+          navigate(`/chat/${newChat.id}`);
+        }
+      } else {
+        // Regular chat creation
+        const newChat = await apiService.createChat({ message, images });
+        navigate(`/chat/${newChat.id}`);
+      }
+      
     } catch (error) {
       console.error('Error creating chat:', error);
     }
   };
 
   const handleQuestionSelect = async (question: string) => {
-    await handleSendMessage(question);
+    try {
+      // Navigate immediately with a temporary chat ID
+      const tempChatId = 'temp-' + Date.now();
+      navigate(`/chat/${tempChatId}`, { 
+        state: { 
+          isNewChat: true, 
+          initialMessage: question,
+          isStreaming: true 
+        } 
+      });
+    } catch (error) {
+      console.error('Error handling question selection:', error);
+    }
   };
 
   return (

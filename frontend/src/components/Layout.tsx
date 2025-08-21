@@ -16,6 +16,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [editingChat, setEditingChat] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [deleteModal, setDeleteModal] = useState<{isOpen: boolean, chatId: string | null, chatTitle: string}>({
+    isOpen: false,
+    chatId: null,
+    chatTitle: ''
+  });
   const location = useLocation();
 
   useEffect(() => {
@@ -26,9 +31,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (event: MouseEvent) => {
       if (activeDropdown) {
-        setActiveDropdown(null);
+        const target = event.target as Element;
+        if (!target.closest('.dropdown-container')) {
+          setActiveDropdown(null);
+        }
       }
     };
 
@@ -37,6 +45,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [activeDropdown]);
+
+  // Handle escape key to close modal
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (deleteModal.isOpen) {
+          cancelDeleteChat();
+        } else if (activeDropdown) {
+          setActiveDropdown(null);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => {
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [deleteModal.isOpen, activeDropdown]);
 
   const loadChats = async () => {
     try {
@@ -68,6 +94,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   };
 
+  const truncateTitle = (title: string) => {
+    const words = title.split(' ');
+    if (words.length <= 3) {
+      return title;
+    }
+    return words.slice(0, 3).join(' ') + '...';
+  };
+
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
@@ -81,43 +115,67 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const handleEditChat = (chat: Chat) => {
+    console.log('Starting edit for chat:', chat.id, chat.title);
     setEditingChat(chat.id);
     setEditTitle(chat.title);
     setActiveDropdown(null);
   };
 
   const handleSaveTitle = async (chatId: string) => {
-    if (!editTitle.trim()) return;
+    if (!editTitle.trim()) {
+      console.log('Empty title, not saving');
+      return;
+    }
     
     try {
+      console.log('Saving title:', editTitle, 'for chat:', chatId);
       await apiService.updateChatTitle(chatId, editTitle.trim());
       setChats(chats.map(chat => 
         chat.id === chatId ? { ...chat, title: editTitle.trim() } : chat
       ));
       setEditingChat(null);
       setEditTitle('');
+      console.log('Title saved successfully');
     } catch (error) {
       console.error('Error updating chat title:', error);
-      alert('Failed to update chat title');
+      alert('Failed to update chat title: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
   const handleCancelEdit = () => {
+    console.log('Cancelling edit');
     setEditingChat(null);
     setEditTitle('');
   };
 
   const handleDeleteChat = async (chatId: string) => {
-    if (!confirm('Are you sure you want to delete this chat?')) return;
+    console.log('Delete requested for chat:', chatId);
+    const chat = chats.find(c => c.id === chatId);
+    setDeleteModal({
+      isOpen: true,
+      chatId: chatId,
+      chatTitle: chat?.title || 'this chat'
+    });
+    setActiveDropdown(null);
+  };
+
+  const confirmDeleteChat = async () => {
+    if (!deleteModal.chatId) return;
     
     try {
-      await apiService.deleteChat(chatId);
-      setChats(chats.filter(chat => chat.id !== chatId));
-      setActiveDropdown(null);
+      console.log('Deleting chat:', deleteModal.chatId);
+      await apiService.deleteChat(deleteModal.chatId);
+      setChats(chats.filter(chat => chat.id !== deleteModal.chatId));
+      setDeleteModal({ isOpen: false, chatId: null, chatTitle: '' });
+      console.log('Chat deleted successfully');
     } catch (error) {
       console.error('Error deleting chat:', error);
-      alert('Failed to delete chat');
+      alert('Failed to delete chat: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
+  };
+
+  const cancelDeleteChat = () => {
+    setDeleteModal({ isOpen: false, chatId: null, chatTitle: '' });
   };
 
   return (
@@ -305,7 +363,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {chats.length === 0 && !loading ? (
               <p className="text-xs text-gray-400 italic">No chat history yet</p>
             ) : (
-              <div className="space-y-1 max-h-96 overflow-y-auto">
+              <div className="space-y-1 max-h-80 overflow-y-auto">
                 {chats.map((chat) => (
                   <div key={chat.id} className="relative group">
                     {editingChat === chat.id ? (
@@ -317,10 +375,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                           onChange={(e) => setEditTitle(e.target.value)}
                           className="w-full px-2 py-1 text-sm border border-emerald-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           autoFocus
-                          onKeyPress={(e) => {
+                          onKeyDown={(e) => {
                             if (e.key === 'Enter') {
+                              e.preventDefault();
                               handleSaveTitle(chat.id);
                             } else if (e.key === 'Escape') {
+                              e.preventDefault();
                               handleCancelEdit();
                             }
                           }}
@@ -342,7 +402,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       </div>
                     ) : (
                       /* Normal Mode */
-                      <div className="flex items-center group">
+                      <div className="flex items-start group pr-8 relative">
                         <Link
                           to={`/chat/${chat.id}`}
                           className={`flex-1 p-2 rounded-lg text-sm transition-colors ${
@@ -352,28 +412,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                           }`}
                           onClick={() => setIsMenuOpen(false)}
                         >
-                          <div className="truncate font-medium mb-1">
-                            {chat.title}
-                          </div>
-                          <div className="flex items-center justify-between text-xs text-gray-500">
-                            <span className="truncate flex-1">
-                              {chat.lastMessage.slice(0, 30)}...
-                            </span>
-                            <span className="ml-2 flex-shrink-0">
+                          <div className="text-left">
+                            <div className="font-medium mb-1 truncate pr-2">
+                              {truncateTitle(chat.title)}
+                            </div>
+                            <div className="text-xs text-gray-500 truncate pr-2">
                               {formatChatTime(chat.lastMessageTime)}
-                            </span>
+                            </div>
                           </div>
                         </Link>
                         
-                        {/* Three Dots Menu */}
-                        <div className="relative">
+                        {/* Three Dots Menu - Fixed positioning */}
+                        <div className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity dropdown-container">
                           <button
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
                               toggleChatDropdown(chat.id);
                             }}
-                            className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           >
                             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                               <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
@@ -382,12 +439,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                           
                           {/* Dropdown Menu */}
                           {activeDropdown === chat.id && (
-                            <div className="absolute right-0 top-8 w-32 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
+                            <div className="absolute right-0 top-8 w-32 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50 dropdown-container">
                               <div className="py-1">
                                 <button
                                   onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
+                                    console.log('Edit clicked for chat:', chat.id);
                                     handleEditChat(chat);
                                   }}
                                   className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -401,6 +459,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                   onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
+                                    console.log('Delete clicked for chat:', chat.id);
                                     handleDeleteChat(chat.id);
                                   }}
                                   className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
@@ -430,6 +489,55 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           className="fixed inset-0 z-30 bg-black bg-opacity-50 lg:hidden"
           onClick={() => setIsMenuOpen(false)}
         ></div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal.isOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={cancelDeleteChat}></div>
+            
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            
+            <div className="relative inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">
+                      Delete Chat
+                    </h3>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500">
+                        Are you sure you want to delete "{truncateTitle(deleteModal.chatTitle)}"? This action cannot be undone.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
+                  onClick={confirmDeleteChat}
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  onClick={cancelDeleteChat}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Main content */}

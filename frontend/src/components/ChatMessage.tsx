@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import StreamingText from './StreamingText';
 
 interface ChatMessageProps {
   message: {
@@ -11,9 +12,16 @@ interface ChatMessageProps {
     sender: 'user' | 'ai';
   };
   showTimestamp?: boolean;
+  isStreaming?: boolean;
+  onStreamComplete?: () => void;
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, showTimestamp = true }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ 
+  message, 
+  showTimestamp = true, 
+  isStreaming = false, 
+  onStreamComplete 
+}) => {
   const formatTime = (date: Date) => {
     return new Intl.DateTimeFormat('en-US', {
       hour: '2-digit',
@@ -62,57 +70,66 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, showTimestamp = true
           {/* Message Content */}
           <div className="text-sm leading-relaxed">
             {isAI ? (
-              <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              // Custom styling for markdown elements
-              h1: ({ children }) => <h1 className="text-lg font-bold text-gray-800 mb-2">{children}</h1>,
-              h2: ({ children }) => <h2 className="text-base font-semibold text-gray-800 mb-2">{children}</h2>,
-              h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-800 mb-1">{children}</h3>,
-              p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-              ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
-              ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
-              li: ({ children }) => <li className="text-gray-700">{children}</li>,
-              strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-              em: ({ children }) => <em className="italic text-gray-700">{children}</em>,
-              code: ({ children, className }) => {
-                const isInline = !className?.includes('language-');
-                return isInline ? (
-                  <code className="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-xs font-mono">
-                {children}
-                  </code>
-                ) : (
-                  <pre className="bg-gray-50 border border-gray-200 rounded-md p-3 mt-2 mb-2 overflow-x-auto">
-                <code className="text-gray-800 text-xs font-mono">{children}</code>
-                  </pre>
-                );
-              },
-              blockquote: ({ children }) => (
-                <blockquote className="border-l-4 border-emerald-200 pl-3 py-1 bg-emerald-50 text-gray-700 italic mb-2">
-                  {children}
-                </blockquote>
-              ),
-              table: ({ children }) => (
-                <div className="overflow-x-auto mb-2">
-                  <table className="min-w-full border border-gray-200 rounded text-xs">
-                {children}
-                  </table>
-                </div>
-              ),
-              th: ({ children }) => (
-                <th className="border border-gray-200 bg-gray-50 px-2 py-1 text-left font-semibold text-gray-800">
-                  {children}
-                </th>
-              ),
-              td: ({ children }) => (
-                <td className="border border-gray-200 px-2 py-1 text-gray-700">
-                  {children}
-                </td>
-              ),
-            }}
-              >
-            {message.content}
-              </ReactMarkdown>
+              isStreaming ? (
+                <StreamingText 
+                  text={message.content}
+                  speed={20}
+                  onComplete={onStreamComplete}
+                  className="text-gray-800"
+                />
+              ) : (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    // Custom styling for markdown elements
+                    h1: ({ children }) => <h1 className="text-lg font-bold text-gray-800 mb-2">{children}</h1>,
+                    h2: ({ children }) => <h2 className="text-base font-semibold text-gray-800 mb-2">{children}</h2>,
+                    h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-800 mb-1">{children}</h3>,
+                    p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                    ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+                    li: ({ children }) => <li className="text-gray-700">{children}</li>,
+                    strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                    em: ({ children }) => <em className="italic text-gray-700">{children}</em>,
+                    code: ({ children, className }) => {
+                      const isInline = !className?.includes('language-');
+                      return isInline ? (
+                        <code className="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-xs font-mono">
+                          {children}
+                        </code>
+                      ) : (
+                        <pre className="bg-gray-50 border border-gray-200 rounded-md p-3 mt-2 mb-2 overflow-x-auto">
+                          <code className="text-gray-800 text-xs font-mono">{children}</code>
+                        </pre>
+                      );
+                    },
+                    blockquote: ({ children }) => (
+                      <blockquote className="border-l-4 border-emerald-200 pl-3 py-1 bg-emerald-50 text-gray-700 italic mb-2">
+                        {children}
+                      </blockquote>
+                    ),
+                    table: ({ children }) => (
+                      <div className="overflow-x-auto mb-2">
+                        <table className="min-w-full border border-gray-200 rounded text-xs">
+                          {children}
+                        </table>
+                      </div>
+                    ),
+                    th: ({ children }) => (
+                      <th className="border border-gray-200 bg-gray-50 px-2 py-1 text-left font-semibold text-gray-800">
+                        {children}
+                      </th>
+                    ),
+                    td: ({ children }) => (
+                      <td className="border border-gray-200 px-2 py-1 text-gray-700">
+                        {children}
+                      </td>
+                    ),
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              )
             ) : (
               <p className="whitespace-pre-wrap">{message.content}</p>
             )}

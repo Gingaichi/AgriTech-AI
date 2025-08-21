@@ -8,8 +8,8 @@ import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
 import fs from "fs";
 import path from "path";
+import fetch from "node-fetch";
 import { fileURLToPath } from 'url';
-import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -95,6 +95,127 @@ When appropriate, format your responses with:
 - > Blockquotes for important warnings or tips
 
 User question: ${message}`,
+      temperature: 0.7,
+    });
+    return response.text.trim();
+  } catch (error) {
+    console.error("❌ Cohere API error:", error);
+    return "⚠️ Error connecting to AI server.";
+  }
+};
+
+// Helper function to get AI response with image analysis
+const getAIResponseWithImages = async (message, images = []) => {
+  try {
+    let imageAnalysisContext = "";
+    
+    // If images are provided, analyze them first
+    if (images && images.length > 0) {
+      try {
+        console.log("🔬 Analyzing images for chat context...");
+        
+        // Create FormData for Django AI models
+        const formData = new FormData();
+        formData.append('crop_type', 'maize'); // Default crop type
+        formData.append('latitude', '-13.9626'); // Lilongwe default
+        formData.append('longitude', '33.7741');
+        
+        // Convert base64 images back to buffers for Django
+        for (let i = 0; i < images.length; i++) {
+          const base64Data = images[i].replace(/^data:image\/[a-z]+;base64,/, '');
+          const buffer = Buffer.from(base64Data, 'base64');
+          const blob = new Blob([buffer], { type: 'image/jpeg' });
+          formData.append('crop_image', blob, `chat_image_${i}.jpg`);
+        }
+        
+        // Try Django AI models first
+        const djangoResponse = await fetch('http://localhost:8000/api/analyze-crop/', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        console.log('Django response status:', djangoResponse.status);
+        console.log('Django response headers:', Object.fromEntries(djangoResponse.headers));
+        
+        if (djangoResponse.ok) {
+          const responseText = await djangoResponse.text();
+          console.log('Django raw response:', responseText);
+          
+          let analysisData;
+          try {
+            analysisData = JSON.parse(responseText);
+          } catch (parseError) {
+            console.error('JSON parse error:', parseError);
+            console.error('Response text:', responseText);
+            throw new Error(`Invalid JSON response: ${parseError.message}`);
+          }
+          
+          if (analysisData.success) {
+            if (analysisData.disease_result) {
+              const disease = analysisData.disease_result;
+              imageAnalysisContext = `
+
+**Image Analysis Results:**
+- Plant identified: ${disease.plant_name || 'Unknown plant'}
+- Health status: ${disease.is_healthy ? 'Healthy' : 'Potential issues detected'}
+- Confidence: ${(disease.probability * 100).toFixed(1)}%
+- Analysis: ${disease.message || 'No specific message'}
+
+**Weather Context:**
+- Current conditions: ${analysisData.weather?.conditions || 'Unknown'}
+- Temperature: ${analysisData.weather?.temperature || 'N/A'}°C
+- Crop prediction: ${analysisData.crop_prediction?.prediction || 'No prediction available'}
+
+`;
+            } else {
+              // Image was uploaded but no disease detection (could be no Plant.ID API key)
+              imageAnalysisContext = `
+
+**Weather Context:**
+- Current conditions: ${analysisData.weather?.conditions || 'Unknown'}
+- Temperature: ${analysisData.weather?.temperature || 'N/A'}°C
+- Crop prediction: ${analysisData.crop_prediction?.prediction || 'No prediction available'}
+
+**Note:** Image uploaded but plant identification temporarily unavailable. Analysis based on weather and general agricultural advice.
+
+`;
+            }
+          }
+        } else {
+          console.log("Django analysis failed, proceeding without image context");
+        }
+      } catch (imageError) {
+        console.error("Image analysis error:", imageError);
+        imageAnalysisContext = "\n**Note:** Image uploaded but analysis temporarily unavailable.\n";
+      }
+    }
+    
+    // Enhanced prompt with image context
+    const enhancedMessage = `You are AgriMate, an expert agricultural assistant specialized in helping farmers in Malawi. 
+
+${imageAnalysisContext}
+
+Your responses should be:
+- Well-structured and formatted using Markdown
+- Clear and actionable for smallholder farmers
+- Specific to Malawi's agricultural conditions
+- Include practical examples and timing recommendations
+- Use headers, bullet points, and numbered lists for clarity
+- If image analysis is provided above, incorporate those findings into your response
+
+When appropriate, format your responses with:
+- ## Headers for main topics
+- ### Sub-headers for specific sections
+- **Bold text** for important points
+- - Bullet points for lists
+- 1. Numbered lists for step-by-step instructions
+- > Blockquotes for important warnings or tips
+
+User question: ${message}`;
+
+    const response = await cohere.chat({
+      model: "command-r",
+      message: enhancedMessage,
       temperature: 0.7,
     });
     return response.text.trim();
@@ -485,8 +606,8 @@ app.post("/api/chats", upload.array('images'), async (req, res) => {
     // Generate title from first message (truncated)
     const title = message.slice(0, 50) + (message.length > 50 ? '...' : '');
     
-    // Get AI response
-    const aiResponse = await getAIResponse(message);
+    // Get AI response with image analysis if images are provided
+    const aiResponse = await getAIResponseWithImages(message, images);
     
     // Start transaction
     db.serialize(() => {
@@ -566,18 +687,26 @@ app.get("/api/chats", (req, res) => {
 app.delete("/api/chat/:chatId", (req, res) => {
   const { chatId } = req.params;
   
-  // Delete the chat and its messages (CASCADE will handle messages)
-  db.run("DELETE FROM chats WHERE id = ?", [chatId], function(err) {
+  // First delete all messages for this chat
+  db.run("DELETE FROM chat_messages WHERE chat_id = ?", [chatId], (err) => {
     if (err) {
-      console.error("Database error:", err);
-      return res.status(500).json({ error: "Failed to delete chat" });
+      console.error("Database error deleting messages:", err);
+      return res.status(500).json({ error: "Failed to delete chat messages" });
     }
     
-    if (this.changes === 0) {
-      return res.status(404).json({ error: "Chat not found" });
-    }
-    
-    res.json({ success: true, message: "Chat deleted successfully" });
+    // Then delete the chat itself
+    db.run("DELETE FROM chats WHERE id = ?", [chatId], function(err) {
+      if (err) {
+        console.error("Database error deleting chat:", err);
+        return res.status(500).json({ error: "Failed to delete chat" });
+      }
+      
+      if (this.changes === 0) {
+        return res.status(404).json({ error: "Chat not found" });
+      }
+      
+      res.json({ success: true, message: "Chat deleted successfully" });
+    });
   });
 });
 
@@ -619,7 +748,7 @@ app.get("/api/suggested-questions", async (req, res) => {
   }
 });
 
-// Get weather forecast for specific coordinates
+// Get weather forecast for specific coordinates (proxied to AI models)
 app.get("/api/weather/:lat/:lon", async (req, res) => {
   try {
     const { lat, lon } = req.params;
@@ -632,15 +761,120 @@ app.get("/api/weather/:lat/:lon", async (req, res) => {
       return res.status(400).json({ error: "Invalid coordinates" });
     }
     
-    // Enhanced weather API call with retry logic and timeout
+    console.log(`🌤️ Proxying weather request to AI models for coordinates: ${latitude}, ${longitude}`);
+    
+    // Proxy to Django AI models backend
+    const aiModelsUrl = `http://localhost:8000/api/weather-forecast/?latitude=${latitude}&longitude=${longitude}`;
+    
+    const response = await fetch(aiModelsUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(15000) // 15 second timeout
+    });
+    
+    if (!response.ok) {
+      console.log('⚠️ AI models weather service unavailable, falling back to direct API');
+      return await handleWeatherFallback(latitude, longitude, res);
+    }
+    
+    const aiWeatherData = await response.json();
+    
+    if (aiWeatherData.success) {
+      console.log('✅ Weather data received from AI models');
+      
+      // Format for frontend compatibility
+      const formattedWeather = {
+        location: { latitude, longitude },
+        daily: formatAIWeatherData(aiWeatherData.weather),
+        crop_prediction: aiWeatherData.crop_prediction
+      };
+      
+      res.json(formattedWeather);
+    } else {
+      throw new Error(aiWeatherData.error || 'AI models returned error');
+    }
+    
+  } catch (error) {
+    console.error("🌤️ Weather proxy error:", error.message);
+    
+    // Fallback to direct Open-Meteo API
+    const { lat, lon } = req.params;
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lon);
+    
+    if (!isNaN(latitude) && !isNaN(longitude)) {
+      return await handleWeatherFallback(latitude, longitude, res);
+    }
+    
+    res.status(503).json({ 
+      error: "Weather service temporarily unavailable",
+      details: "Both AI models and direct weather API failed",
+      retryAfter: 30
+    });
+  }
+});
+
+// Get AI weather forecast with crop predictions (3-day forecast)
+app.get("/api/ai-weather/:lat/:lon", async (req, res) => {
+  try {
+    const { lat, lon } = req.params;
+    const { crop_type = 'maize' } = req.query;
+    
+    // Validate coordinates
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lon);
+    
+    if (isNaN(latitude) || isNaN(longitude)) {
+      return res.status(400).json({ error: "Invalid coordinates" });
+    }
+    
+    console.log(`🌱 Getting AI weather forecast for coordinates: ${latitude}, ${longitude}, crop: ${crop_type}`);
+    
+    // Call Django AI models weather endpoint with crop predictions
+    const aiModelsUrl = `http://localhost:8000/api/weather-forecast/?latitude=${latitude}&longitude=${longitude}&crop_type=${crop_type}`;
+    
+    const response = await fetch(aiModelsUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(15000) // 15 second timeout
+    });
+    
+    if (!response.ok) {
+      throw new Error(`AI models weather service returned ${response.status}`);
+    }
+    
+    const aiWeatherData = await response.json();
+    
+    if (aiWeatherData.success) {
+      console.log('✅ AI weather forecast received');
+      res.json(aiWeatherData);
+    } else {
+      throw new Error(aiWeatherData.error || 'AI models returned error');
+    }
+    
+  } catch (error) {
+    console.error("🌱 AI weather forecast error:", error.message);
+    res.status(503).json({ 
+      error: "AI weather service temporarily unavailable",
+      details: error.message 
+    });
+  }
+});
+
+// Weather fallback function for direct Open-Meteo API
+const handleWeatherFallback = async (latitude, longitude, res) => {
+  try {
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,weathercode&timezone=Africa/Blantyre&forecast_days=7`;
     
     const fetchWithRetry = async (url, retries = 3, timeout = 10000) => {
       for (let i = 0; i < retries; i++) {
         try {
-          console.log(`Weather API attempt ${i + 1}/${retries} for coordinates: ${latitude}, ${longitude}`);
+          console.log(`Weather API fallback attempt ${i + 1}/${retries}`);
           
-          // Create AbortController for timeout
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), timeout);
           
@@ -658,20 +892,15 @@ app.get("/api/weather/:lat/:lon", async (req, res) => {
           }
           
           const data = await response.json();
-          console.log('✅ Weather data fetched successfully');
+          console.log('✅ Fallback weather data fetched successfully');
           return data;
           
         } catch (error) {
-          console.log(`❌ Weather API attempt ${i + 1} failed:`, error.message);
+          console.log(`❌ Fallback attempt ${i + 1} failed:`, error.message);
           
-          if (i === retries - 1) {
-            // Last attempt failed
-            throw error;
-          }
+          if (i === retries - 1) throw error;
           
-          // Wait before retry (exponential backoff)
-          const delay = Math.pow(2, i) * 1000; // 1s, 2s, 4s
-          console.log(`⏳ Retrying in ${delay}ms...`);
+          const delay = Math.pow(2, i) * 1000;
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
@@ -679,12 +908,10 @@ app.get("/api/weather/:lat/:lon", async (req, res) => {
     
     const weatherData = await fetchWithRetry(weatherUrl);
     
-    // Validate response structure
     if (!weatherData.daily || !weatherData.daily.time) {
       throw new Error('Invalid weather data structure received');
     }
     
-    // Format weather data for frontend
     const formattedWeather = {
       location: { latitude, longitude },
       daily: weatherData.daily.time.map((date, index) => ({
@@ -702,33 +929,138 @@ app.get("/api/weather/:lat/:lon", async (req, res) => {
     res.json(formattedWeather);
     
   } catch (error) {
-    console.error("🌤️ Weather API Error Details:", {
-      message: error.message,
-      type: error.type,
-      code: error.code,
-      errno: error.errno
-    });
+    console.error("❌ Weather fallback failed:", error.message);
+    throw error;
+  }
+};
+
+// Helper function to format AI weather data for frontend compatibility
+const formatAIWeatherData = (aiWeatherData) => {
+  // Convert AI models weather format to match frontend expectations
+  if (!aiWeatherData) return [];
+  
+  // If AI weather data has a different format, convert it
+  // This is a placeholder - adjust based on actual AI models response format
+  return [{
+    date: new Date().toISOString().split('T')[0],
+    temperature: {
+      max: aiWeatherData.today_high || 25,
+      min: aiWeatherData.today_low || 15
+    },
+    precipitation: aiWeatherData.precipitation || 0,
+    windSpeed: aiWeatherData.wind_speed || 5,
+    weatherCode: aiWeatherData.weather_code || 0
+  }];
+};
+
+// Advanced image analysis endpoint (proxied to AI models)
+app.post("/api/analyze-image", upload.array('images'), async (req, res) => {
+  try {
+    const { crop_type = 'maize' } = req.body;
+    const images = req.files;
     
-    // Provide different error messages based on error type
-    let userMessage = "Failed to fetch weather data";
-    
-    if (error.code === 'ETIMEDOUT' || error.name === 'AbortError') {
-      userMessage = "Weather service is currently unavailable. Please try again later.";
-    } else if (error.message.includes('HTTP 5')) {
-      userMessage = "Weather service is temporarily down. Please try again in a few minutes.";
-    } else if (error.message.includes('Invalid coordinates')) {
-      userMessage = "Invalid location coordinates provided.";
+    if (!images || images.length === 0) {
+      return res.status(400).json({ error: "No images provided for analysis" });
     }
     
-    res.status(503).json({ 
-      error: userMessage,
-      details: "Weather data temporarily unavailable",
-      retryAfter: 30 // seconds
+    console.log(`🔬 Analyzing ${images.length} image(s) for crop type: ${crop_type}`);
+    
+    // Process first image (extend later for multiple images)
+    const imageFile = images[0];
+    
+    // Create FormData to send to Django
+    const formData = new FormData();
+    const blob = new Blob([imageFile.buffer], { type: imageFile.mimetype });
+    formData.append('image', blob, imageFile.originalname);
+    formData.append('crop_type', crop_type);
+    
+    // Proxy to Django AI models backend
+    const aiModelsUrl = 'http://localhost:8000/api/analyze-image/';
+    
+    const response = await fetch(aiModelsUrl, {
+      method: 'POST',
+      body: formData,
+      signal: AbortSignal.timeout(30000) // 30 second timeout for image analysis
+    });
+    
+    if (!response.ok) {
+      console.log('⚠️ AI models image analysis service unavailable');
+      return res.status(503).json({
+        error: "Advanced image analysis temporarily unavailable",
+        details: "AI models service is not responding",
+        fallback_available: false
+      });
+    }
+    
+    const analysisResult = await response.json();
+    
+    if (analysisResult.success) {
+      console.log('✅ Image analysis completed successfully');
+      
+      // Format response for frontend
+      const formattedResult = {
+        success: true,
+        analysis: {
+          plant_identification: analysisResult.analysis,
+          recommendations: analysisResult.recommendations,
+          crop_type: analysisResult.crop_type,
+          analysis_type: 'advanced_ai'
+        },
+        timestamp: new Date().toISOString()
+      };
+      
+      res.json(formattedResult);
+    } else {
+      throw new Error(analysisResult.error || 'AI analysis failed');
+    }
+    
+  } catch (error) {
+    console.error("🔬 Image analysis proxy error:", error.message);
+    
+    // Provide fallback response
+    res.status(503).json({
+      error: "Advanced image analysis failed",
+      details: error.message,
+      fallback_message: "Please try again later or use basic chat for general crop advice"
     });
   }
 });
 
-// Crop yield prediction with AI analysis
+// Health check for AI models integration
+app.get("/api/ai-models-health", async (req, res) => {
+  try {
+    console.log('🏥 Checking AI models service health...');
+    
+    const response = await fetch('http://localhost:8000/api/health/', {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    });
+    
+    if (response.ok) {
+      const healthData = await response.json();
+      console.log('✅ AI models service is healthy');
+      
+      res.json({
+        ai_models_status: 'healthy',
+        ai_models_services: healthData.services,
+        integration_status: 'connected',
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      throw new Error(`Health check failed: ${response.status}`);
+    }
+    
+  } catch (error) {
+    console.log('❌ AI models service is unavailable:', error.message);
+    
+    res.status(503).json({
+      ai_models_status: 'unavailable',
+      integration_status: 'disconnected',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 app.post("/api/crop-yield-prediction", async (req, res) => {
   try {
     const { fieldData, weatherData, historicalYield } = req.body;
@@ -951,8 +1283,8 @@ app.post("/api/chat/:id/message", upload.array('images'), async (req, res) => {
     const userMessageId = uuidv4();
     const aiMessageId = uuidv4();
     
-    // Get AI response
-    const aiResponse = await getAIResponse(message);
+    // Get AI response with image analysis if images are provided
+    const aiResponse = await getAIResponseWithImages(message, images);
     
     // Start transaction
     db.serialize(() => {

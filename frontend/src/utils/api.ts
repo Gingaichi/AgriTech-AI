@@ -224,6 +224,33 @@ class ApiService {
     return result.questions;
   }
 
+  // Get AI models weather forecast (3-day forecast with crop predictions)
+  async getAIWeatherForecast(latitude: number, longitude: number, cropType: string = 'maize'): Promise<any> {
+    console.log('API: Fetching AI weather forecast for', latitude, longitude, cropType);
+    
+    try {
+      const response = await fetch(`${this.baseUrl}/ai-weather/${latitude}/${longitude}?crop_type=${cropType}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(15000) // 15 second timeout
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch AI weather forecast: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('API: AI weather forecast fetched successfully', result);
+      return result;
+      
+    } catch (error) {
+      console.error('API: AI weather forecast error:', error);
+      throw error;
+    }
+  }
+
   // Get weather forecast for coordinates
   async getWeatherForecast(latitude: number, longitude: number): Promise<WeatherData> {
     console.log('API: Fetching weather forecast for', latitude, longitude);
@@ -355,6 +382,84 @@ class ApiService {
   async clearAllChats(): Promise<void> {
     console.log('API: Clearing all chats not implemented in backend yet');
     // This would need to be implemented in the backend if needed
+  }
+
+  // Advanced image analysis using AI models backend
+  async analyzeImage(images: File[], cropType: string = 'maize'): Promise<any> {
+    console.log('API: Analyzing images with AI models', images.length, cropType);
+    
+    try {
+      const formData = new FormData();
+      images.forEach((image, index) => {
+        formData.append(`images`, image);
+      });
+      formData.append('crop_type', cropType);
+      
+      const response = await fetch(`${this.baseUrl}/analyze-image`, {
+        method: 'POST',
+        body: formData,
+        signal: AbortSignal.timeout(30000) // 30 second timeout for AI analysis
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+        
+        if (response.status === 503) {
+          throw new Error(`Advanced image analysis temporarily unavailable: ${errorMessage}`);
+        }
+        
+        throw new Error(`Failed to analyze image: ${errorMessage}`);
+      }
+
+      const result = await response.json();
+      console.log('API: Advanced image analysis completed', result);
+      return result;
+      
+    } catch (error) {
+      console.error('API: Advanced image analysis error:', error);
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('Image analysis timed out. Please try again with a smaller image.');
+        }
+        
+        if (error.message.includes('Failed to fetch')) {
+          throw new Error('Unable to connect to AI analysis service. Please check your internet connection.');
+        }
+        
+        throw error;
+      }
+      
+      throw new Error('Unknown error occurred during image analysis');
+    }
+  }
+
+  // Check AI models service health
+  async checkAIModelsHealth(): Promise<any> {
+    console.log('API: Checking AI models service health');
+    
+    try {
+      const response = await fetch(`${this.baseUrl}/ai-models-health`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(5000) // 5 second timeout
+      });
+
+      const result = await response.json();
+      console.log('API: AI models health check result', result);
+      return result;
+      
+    } catch (error) {
+      console.error('API: AI models health check failed:', error);
+      return {
+        ai_models_status: 'unavailable',
+        integration_status: 'disconnected',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
   }
 
   // Delete a specific chat

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 interface ChatBoxProps {
   className?: string;
-  onSendMessage?: (message: string, images?: File[]) => void;
+  onSendMessage?: (message: string, images?: File[], useAdvancedAnalysis?: boolean) => void;
   placeholder?: string;
   disabled?: boolean;
 }
@@ -15,6 +15,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
 }) => {
   const [message, setMessage] = useState('');
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [useAdvancedAnalysis, setUseAdvancedAnalysis] = useState(false);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -26,9 +27,10 @@ const ChatBox: React.FC<ChatBoxProps> = ({
 
   const handleSendMessage = () => {
     if ((message.trim() || selectedImages.length > 0) && !disabled) {
-      onSendMessage?.(message, selectedImages);
+      onSendMessage?.(message, selectedImages, useAdvancedAnalysis);
       setMessage('');
       setSelectedImages([]);
+      setUseAdvancedAnalysis(false);
     }
   };
 
@@ -45,6 +47,22 @@ const ChatBox: React.FC<ChatBoxProps> = ({
 
   return (
     <div className={`bg-white rounded-lg shadow-lg border border-gray-200 ${className}`}>
+      {/* Advanced Analysis Toggle */}
+      {selectedImages.length > 0 && (
+        <div className="p-3 border-b border-gray-100">
+          <label className="flex items-center space-x-2 text-sm">
+            <input
+              type="checkbox"
+              checked={useAdvancedAnalysis}
+              onChange={(e) => setUseAdvancedAnalysis(e.target.checked)}
+              className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <span className="text-gray-700">🔬 Use Advanced AI Image Analysis</span>
+            <span className="text-xs text-gray-500">(Plant disease detection & detailed recommendations)</span>
+          </label>
+        </div>
+      )}
+
       {/* Selected Images Preview */}
       {selectedImages.length > 0 && (
         <div className="p-3 border-b border-gray-200">

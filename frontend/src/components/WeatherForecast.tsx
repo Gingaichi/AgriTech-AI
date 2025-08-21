@@ -76,9 +76,31 @@ const WeatherForecast: React.FC = () => {
         }
       }
 
-      // Use the new backend weather API
-      const data = await apiService.getWeatherForecast(latitude, longitude);
-      setWeatherData(data);
+      // Use the new AI weather API for enhanced forecasts
+      const data = await apiService.getAIWeatherForecast(latitude, longitude, selectedField.cropType);
+      
+      if (data.success) {
+        // Transform AI weather data to match component expectations
+        const transformedWeather = {
+          location: { latitude, longitude },
+          daily: data.weather.forecast.map((day: any, index: number) => ({
+            date: new Date(Date.now() + index * 86400000).toISOString().split('T')[0], // Today, tomorrow, day after
+            temperature: { max: day.high, min: day.low },
+            precipitation: day.precipitation,
+            windSpeed: 5.0, // Default value
+            weatherCode: getWeatherCodeFromCondition(day.condition)
+          })),
+          crop_prediction: data.crop_prediction,
+          current_weather: {
+            temperature: data.weather.temperature,
+            humidity: data.weather.humidity,
+            condition: data.weather.conditions
+          }
+        };
+        setWeatherData(transformedWeather);
+      } else {
+        throw new Error(data.error || 'AI weather service failed');
+      }
     } catch (err) {
       console.error('Error fetching weather data:', err);
       setError('Unable to fetch weather data. Please check your connection.');
@@ -126,6 +148,19 @@ const WeatherForecast: React.FC = () => {
     if (weatherCode <= 82) return 'Showers';
     if (weatherCode <= 99) return 'Thunderstorm';
     return 'Unknown';
+  };
+
+  const getWeatherCodeFromCondition = (condition: string): number => {
+    // Convert text conditions back to weather codes for consistency
+    const conditionLower = condition.toLowerCase();
+    if (conditionLower.includes('clear')) return 0;
+    if (conditionLower.includes('partly cloudy') || conditionLower.includes('mainly clear')) return 1;
+    if (conditionLower.includes('overcast')) return 3;
+    if (conditionLower.includes('fog')) return 45;
+    if (conditionLower.includes('drizzle')) return 53;
+    if (conditionLower.includes('rain')) return 63;
+    if (conditionLower.includes('thunderstorm')) return 95;
+    return 1; // Default to partly cloudy
   };
 
   const getWeatherIcon = (weatherCode: number) => {
@@ -224,6 +259,30 @@ const WeatherForecast: React.FC = () => {
 
       {selectedField && weatherData && !loading && (
         <div className="space-y-4">
+          {/* AI Crop Prediction Section */}
+          {(weatherData as any).crop_prediction && (
+            <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg p-4 border border-emerald-200 mb-4">
+              <h3 className="font-medium text-emerald-900 mb-2">🌾 AI Crop Analysis for {selectedField.cropType}</h3>
+              <div className="space-y-2 text-sm">
+                <p className="text-emerald-800">
+                  <strong>Prediction:</strong> {(weatherData as any).crop_prediction.prediction}
+                </p>
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div>
+                    <span className="text-emerald-700 font-medium">Ideal Temperature:</span>
+                    <br />
+                    <span className="text-emerald-600">{(weatherData as any).crop_prediction.ideal_temp}</span>
+                  </div>
+                  <div>
+                    <span className="text-emerald-700 font-medium">Ideal Rainfall:</span>
+                    <br />
+                    <span className="text-emerald-600">{(weatherData as any).crop_prediction.ideal_rain}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Current Weather Summary */}
           <div className="bg-gradient-to-r from-blue-50 to-emerald-50 rounded-lg p-4">
             <div className="flex items-center justify-between">
@@ -243,16 +302,18 @@ const WeatherForecast: React.FC = () => {
             </div>
           </div>
 
-          {/* Daily Forecast */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {weatherData.daily.slice(0, 7).map((day, _index) => (
-              <div key={day.date} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-medium text-gray-900">
-                    {formatDate(day.date)}
-                  </span>
-                  {getWeatherIcon(day.weatherCode)}
-                </div>
+          {/* Daily Forecast - Show exactly 3 days: Today, Tomorrow, Day After */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {weatherData.daily.slice(0, 3).map((day, index) => {
+              const dayLabels = ['Today', 'Tomorrow', 'Day After'];
+              return (
+                <div key={day.date} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-medium text-gray-900">
+                      {dayLabels[index] || formatDate(day.date)}
+                    </span>
+                    {getWeatherIcon(day.weatherCode)}
+                  </div>
 
                 <div className="space-y-2">
                   {/* Temperature */}
@@ -302,12 +363,11 @@ const WeatherForecast: React.FC = () => {
                       {getWeatherDescription(day.weatherCode)}
                     </p>
                   </div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Agricultural Recommendations based on weather */}
+              );
+            })}
+          </div>          {/* Agricultural Recommendations based on weather */}
           {weatherData.daily[0] && (
             <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
               <h3 className="font-medium text-emerald-900 mb-2">🌱 Field Recommendations</h3>

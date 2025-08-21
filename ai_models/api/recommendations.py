@@ -52,28 +52,33 @@ class RecommendationEngine:
             recommendations.append(f"Consult local agricultural extension for {crop_type} growing advice")
         
         # Weather-based advice
-        temp = weather_data['temperature']
-        precipitation = weather_data.get('precipitation', 0)
-        
-        if temp > 30:
-            recommendations.append("🌡️ High temperature expected - ensure adequate irrigation and consider shade options")
-        elif temp < 15:
-            recommendations.append("❄️ Low temperature expected - protect young plants with covers")
-        
-        if precipitation > 10:
-            recommendations.append("🌧️ Heavy rain expected - ensure good drainage to prevent waterlogging")
-        elif precipitation == 0 and weather_data.get('conditions') != 'Rain':
-            recommendations.append("☀️ No rain expected - irrigation will be necessary")
+        if weather_data:
+            temp = weather_data.get('temperature', 20)  # Default to moderate temperature
+            precipitation = weather_data.get('precipitation', 0)
+            
+            if temp > 30:
+                recommendations.append("🌡️ High temperature expected - ensure adequate irrigation and consider shade options")
+            elif temp < 15:
+                recommendations.append("❄️ Low temperature expected - protect young plants with covers")
+            
+            if precipitation > 10:
+                recommendations.append("🌧️ Heavy rain expected - ensure good drainage to prevent waterlogging")
+            elif precipitation == 0 and weather_data.get('conditions') != 'Rain':
+                recommendations.append("☀️ No rain expected - irrigation will be necessary")
+            
+            # General advice based on forecast
+            forecast = weather_data.get('forecast', [])
+            if len(forecast) > 1 and forecast[1].get('precipitation', 0) > 5:
+                recommendations.append("� Tomorrow's forecast shows significant rain - plan activities accordingly")
+        else:
+            # Default advice when no weather data is available
+            recommendations.append("🌡️ Monitor weather conditions and adjust irrigation accordingly")
+            recommendations.append("📅 Check local weather forecast for planning farm activities")
         
         # Disease advice
         if disease_status and not disease_status.get('is_healthy', True):
             recommendations.append("⚠️ Disease detected - consider organic fungicides and remove affected plants")
             recommendations.append("🌿 Practice crop rotation to prevent disease buildup")
             recommendations.append("💧 Avoid overhead watering to reduce humidity around plants")
-        
-        # General advice based on forecast
-        forecast = weather_data.get('forecast', [])
-        if len(forecast) > 1 and forecast[1].get('precipitation', 0) > 5:
-            recommendations.append("📅 Tomorrow's forecast shows significant rain - plan activities accordingly")
         
         return recommendations

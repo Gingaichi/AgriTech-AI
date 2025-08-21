@@ -1,22 +1,91 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { apiService } from '../utils/api';
 import type { Chat } from '../utils/api';
 import ChatBox from '../components/ChatBox';
-import ChatMessage from '../components/ChatMessage';
+import ChatMessageComponent from '../components/ChatMessage';
 
 const ChatPage: React.FC = () => {
   const { chatId } = useParams<{ chatId: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [chat, setChat] = useState<Chat | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (chatId) {
-      loadChat(chatId);
+      // Handle optimistic navigation from Dashboard
+      if (chatId.startsWith('temp-') && location.state?.isNewChat) {
+        handleOptimisticChat();
+      } else {
+        loadChat(chatId);
+      }
     }
   }, [chatId]);
+
+  const handleOptimisticChat = async () => {
+    const { initialMessage, isStreaming } = location.state as any;
+    
+    try {
+      // Create optimistic UI immediately
+      const tempUserMessage = {
+        id: 'temp-user',
+        content: initialMessage,
+        timestamp: new Date(),
+        sender: 'user' as const
+      };
+
+      const tempAiMessage = {
+        id: 'temp-ai',
+        content: 'Thinking...',
+        timestamp: new Date(),
+        sender: 'ai' as const
+      };
+
+      const optimisticChat = {
+        id: chatId!,
+        title: initialMessage.length > 50 ? initialMessage.substring(0, 47) + '...' : initialMessage,
+        messages: [tempUserMessage, tempAiMessage],
+        lastMessage: initialMessage,
+        lastMessageTime: new Date(),
+        createdAt: new Date()
+      };
+
+      setChat(optimisticChat);
+      setLoading(false);
+      setStreamingMessageId('temp-ai');
+
+      // Now create the real chat
+      const realChat = await apiService.createChat({ message: initialMessage });
+      
+      // Update with real chat data and start streaming
+      const realAiMessage = realChat.messages.find(m => m.sender === 'ai');
+      if (realAiMessage) {
+        setStreamingMessageId(realAiMessage.id);
+        setChat(prev => prev ? {
+          ...prev,
+          id: realChat.id,
+          messages: prev.messages.map(msg => 
+            msg.id === 'temp-ai' 
+              ? { ...realAiMessage, content: realAiMessage.content }
+              : msg.id === 'temp-user' 
+                ? realChat.messages.find(m => m.sender === 'user') || msg
+                : msg
+          )
+        } : null);
+      }
+
+      // Update URL to real chat ID
+      navigate(`/chat/${realChat.id}`, { replace: true });
+      
+    } catch (error) {
+      console.error('Error creating optimistic chat:', error);
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     scrollToBottom();
@@ -38,29 +107,132 @@ const ChatPage: React.FC = () => {
     }
   };
 
-  const handleSendMessage = async (message: string, images?: File[]) => {
-    if (!chatId || !message.trim()) return;
+  const handleSendMessage = async (message: string, images?: File[], useAdvancedAnalysis?: boolean) => {
+    if (!chatId || (!message.trim() && (!images || images.length === 0))) return;
 
     try {
       setSending(true);
-      const newMessages = await apiService.sendMessage({
-        chatId,
-        message,
-        images
-      });
+      
+      // Add user message immediately for better UX
+      const tempUserMessage = {
+        id: 'temp-user-' + Date.now(),
+        content: message,
+        images: images?.map(img => URL.createObjectURL(img)),
+        timestamp: new Date(),
+        sender: 'user' as const
+      };
 
-      // Update local state
       setChat(prev => {
         if (!prev) return null;
         return {
           ...prev,
-          messages: [...prev.messages, ...newMessages],
-          lastMessage: newMessages[newMessages.length - 1].content,
-          lastMessageTime: newMessages[newMessages.length - 1].timestamp
+          messages: [...prev.messages, tempUserMessage]
         };
       });
+      
+      // If advanced analysis is requested and images are provided
+      if (useAdvancedAnalysis && images && images.length > 0) {
+        console.log('🔬 Performing advanced image analysis...');
+        
+        try {
+          // First, perform advanced image analysis
+          const analysisResult = await apiService.analyzeImage(images, 'maize');
+          
+          // Create a special message that includes both the user's message and analysis results
+          const enhancedMessage = message.trim() 
+            ? `${message}\n\n[Advanced Analysis Results]\n${JSON.stringify(analysisResult.analysis, null, 2)}`
+            : `[Advanced Image Analysis]\n${JSON.stringify(analysisResult.analysis, null, 2)}`;
+          
+          const newMessages = await apiService.sendMessage({
+            chatId,
+            message: enhancedMessage,
+            images
+          });
+
+          // Start streaming the AI response
+          const aiMessage = newMessages.find(m => m.sender === 'ai');
+          if (aiMessage) {
+            setStreamingMessageId(aiMessage.id);
+          }
+
+          // Update local state
+          setChat(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              messages: [...prev.messages.filter(m => m.id !== tempUserMessage.id), ...newMessages],
+              lastMessage: newMessages[newMessages.length - 1].content,
+              lastMessageTime: newMessages[newMessages.length - 1].timestamp
+            };
+          });
+          
+        } catch (analysisError) {
+          console.error('Advanced analysis failed, falling back to regular chat:', analysisError);
+          
+          // Fallback to regular message if advanced analysis fails
+          const fallbackMessage = message.trim() 
+            ? `${message}\n\n[Note: Advanced analysis was requested but is currently unavailable. Please analyze these crop images and provide recommendations.]`
+            : '[Note: Advanced analysis was requested but is currently unavailable. Please analyze these crop images and provide recommendations.]';
+          
+          const newMessages = await apiService.sendMessage({
+            chatId,
+            message: fallbackMessage,
+            images
+          });
+
+          // Start streaming the AI response
+          const aiMessage = newMessages.find(m => m.sender === 'ai');
+          if (aiMessage) {
+            setStreamingMessageId(aiMessage.id);
+          }
+
+          setChat(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              messages: [...prev.messages.filter(m => m.id !== tempUserMessage.id), ...newMessages],
+              lastMessage: newMessages[newMessages.length - 1].content,
+              lastMessageTime: newMessages[newMessages.length - 1].timestamp
+            };
+          });
+        }
+        
+      } else {
+        // Regular message handling
+        const newMessages = await apiService.sendMessage({
+          chatId,
+          message,
+          images
+        });
+
+        // Start streaming the AI response
+        const aiMessage = newMessages.find(m => m.sender === 'ai');
+        if (aiMessage) {
+          setStreamingMessageId(aiMessage.id);
+        }
+
+        // Update local state
+        setChat(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            messages: [...prev.messages.filter(m => m.id !== tempUserMessage.id), ...newMessages],
+            lastMessage: newMessages[newMessages.length - 1].content,
+            lastMessageTime: newMessages[newMessages.length - 1].timestamp
+          };
+        });
+      }
+      
     } catch (error) {
       console.error('Error sending message:', error);
+      // Remove the temporary user message on error
+      setChat(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          messages: prev.messages.filter(m => !m.id.startsWith('temp-user-'))
+        };
+      });
     } finally {
       setSending(false);
     }
@@ -130,7 +302,7 @@ const ChatPage: React.FC = () => {
               <h1 className="text-xl font-semibold text-gray-900 truncate">
                 {chat.title}
               </h1>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 text-left">
                 Created {formatDate(chat.createdAt)} at {formatTime(chat.createdAt)}
               </p>
             </div>
@@ -166,7 +338,11 @@ const ChatPage: React.FC = () => {
                 )}
 
                 {/* Message Component */}
-                <ChatMessage message={message} />
+                <ChatMessageComponent 
+                  message={message} 
+                  isStreaming={streamingMessageId === message.id}
+                  onStreamComplete={() => setStreamingMessageId(null)}
+                />
               </div>
             );
           })}
