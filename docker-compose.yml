@@ -1,6 +1,27 @@
 version: '3.8'
 
 services:
+  # Django AI Models Service
+  ai-models:
+    build:
+      context: ./ai_models
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_SETTINGS_MODULE=ai_models.settings
+      - PLANTID_API_KEY=${PLANTID_API_KEY}
+    volumes:
+      - agritech_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # Node.js Backend Service  
   agritech-ai:
     build: .
     ports:
@@ -11,9 +32,12 @@ services:
       - DATABASE_PATH=/app/data/db.sqlite3
       - COHERE_API_KEY=${COHERE_API_KEY}
       - PLANTID_API_KEY=${PLANTID_API_KEY}
+      - AI_MODELS_URL=http://ai-models:8000
     volumes:
       # Persist database
       - agritech_data:/app/data
+    depends_on:
+      - ai-models
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]

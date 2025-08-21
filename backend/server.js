@@ -129,7 +129,8 @@ const getAIResponseWithImages = async (message, images = []) => {
         }
         
         // Try Django AI models first
-        const djangoResponse = await fetch('http://localhost:8000/api/analyze-crop/', {
+        const aiModelsUrl = process.env.AI_MODELS_URL || 'http://localhost:8000';
+        const djangoResponse = await fetch(`${aiModelsUrl}/api/analyze-crop/`, {
           method: 'POST',
           body: formData,
         });
@@ -764,9 +765,10 @@ app.get("/api/weather/:lat/:lon", async (req, res) => {
     console.log(`🌤️ Proxying weather request to AI models for coordinates: ${latitude}, ${longitude}`);
     
     // Proxy to Django AI models backend
-    const aiModelsUrl = `http://localhost:8000/api/weather-forecast/?latitude=${latitude}&longitude=${longitude}`;
+    const aiModelsUrl = process.env.AI_MODELS_URL || 'http://localhost:8000';
+    const aiModelsEndpoint = `${aiModelsUrl}/api/weather-forecast/?latitude=${latitude}&longitude=${longitude}`;
     
-    const response = await fetch(aiModelsUrl, {
+    const response = await fetch(aiModelsEndpoint, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -833,9 +835,10 @@ app.get("/api/ai-weather/:lat/:lon", async (req, res) => {
     console.log(`🌱 Getting AI weather forecast for coordinates: ${latitude}, ${longitude}, crop: ${crop_type}`);
     
     // Call Django AI models weather endpoint with crop predictions
-    const aiModelsUrl = `http://localhost:8000/api/weather-forecast/?latitude=${latitude}&longitude=${longitude}&crop_type=${crop_type}`;
+    const aiModelsUrl = process.env.AI_MODELS_URL || 'http://localhost:8000';
+    const aiModelsEndpoint = `${aiModelsUrl}/api/weather-forecast/?latitude=${latitude}&longitude=${longitude}&crop_type=${crop_type}`;
     
-    const response = await fetch(aiModelsUrl, {
+    const response = await fetch(aiModelsEndpoint, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -975,9 +978,10 @@ app.post("/api/analyze-image", upload.array('images'), async (req, res) => {
     formData.append('crop_type', crop_type);
     
     // Proxy to Django AI models backend
-    const aiModelsUrl = 'http://localhost:8000/api/analyze-image/';
+    const aiModelsUrl = process.env.AI_MODELS_URL || 'http://localhost:8000';
+    const aiModelsEndpoint = `${aiModelsUrl}/api/analyze-image/`;
     
-    const response = await fetch(aiModelsUrl, {
+    const response = await fetch(aiModelsEndpoint, {
       method: 'POST',
       body: formData,
       signal: AbortSignal.timeout(30000) // 30 second timeout for image analysis
@@ -1031,7 +1035,8 @@ app.get("/api/ai-models-health", async (req, res) => {
   try {
     console.log('🏥 Checking AI models service health...');
     
-    const response = await fetch('http://localhost:8000/api/health/', {
+    const aiModelsUrl = process.env.AI_MODELS_URL || 'http://localhost:8000';
+    const response = await fetch(`${aiModelsUrl}/api/health/`, {
       method: 'GET',
       signal: AbortSignal.timeout(5000) // 5 second timeout
     });

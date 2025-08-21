@@ -222,31 +222,73 @@ curl http://localhost:5000/api/chats
 
 ```
 AgriTech-AI/
+├── 📁 .github/                  # GitHub configuration
+│   └── copilot-instructions.md  # AI agent guidelines
+├── 📁 docs/                     # Documentation
+│   ├── DEVELOPMENT.md           # This development guide
+│   ├── DEPLOYMENT.md            # Deployment instructions
+│   └── DOCKER.md                # Docker setup guide
 ├── 📁 frontend/                 # React + TypeScript UI
 │   ├── src/
 │   │   ├── components/          # UI components
-│   │   ├── pages/              # Page components
-│   │   ├── utils/              # API services
-│   │   └── ui/svgs/            # SVG icons
+│   │   │   ├── ChatBox.tsx      # Chat input component
+│   │   │   ├── ChatContainer.tsx # Chat layout wrapper
+│   │   │   ├── ChatMessage.tsx  # Individual message display
+│   │   │   ├── CropYieldTrends.tsx # Yield analysis charts
+│   │   │   ├── Layout.tsx       # Main app layout
+│   │   │   ├── StreamingText.tsx # Text animation (5ms speed)
+│   │   │   ├── WeatherForecast.tsx # Weather display
+│   │   │   └── WeeklyTips.tsx   # Agricultural tips
+│   │   ├── pages/               # Page components
+│   │   │   ├── ChatPage.tsx     # Individual chat view
+│   │   │   ├── Dashboard.tsx    # Main dashboard
+│   │   │   ├── FieldManagement.tsx # Farm field CRUD
+│   │   │   └── AIPredictions.tsx # AI analysis results
+│   │   ├── hooks/               # Custom React hooks
+│   │   ├── lib/                 # Utility libraries
+│   │   ├── utils/               # API services & utilities
+│   │   ├── ui/svgs/             # SVG icon components
+│   │   └── assets/              # Static assets
+│   ├── public/                  # Public static files
+│   ├── dist/                    # Built frontend (production)
 │   ├── package.json
-│   └── vite.config.ts
-├── 📁 backend/                  # Node.js chat backend
-│   ├── server.js               # Express server
-│   ├── init-db.js              # Database setup
-│   └── package.json
+│   ├── vite.config.ts
+│   ├── tailwind.config.js
+│   └── tsconfig.json
+├── 📁 backend/                  # Node.js Express backend
+│   ├── server.js               # Main Express server with Cohere AI
+│   ├── init-db.js              # SQLite database initialization
+│   ├── package.json
+│   └── test_image.png          # Sample test image
 ├── 📁 ai_models/               # Django AI services
-│   ├── ai_models_backend/      # Django settings
-│   ├── api/                    # AI endpoints
-│   │   ├── views.py            # API views
-│   │   └── urls.py             # URL routing
-│   ├── db.sqlite3              # Shared database
-│   ├── manage.py
-│   └── requirements.txt
-├── .venv/                      # Python virtual environment
-├── setup-dev.sh               # Development setup script
-├── start-services.sh           # Service startup script
-├── package.json                # Root NPM scripts
-├── DEVELOPMENT.md              # This file
+│   ├── ai_models_backend/      # Django project settings
+│   ├── api/                    # AI API endpoints
+│   │   ├── views.py            # API view handlers
+│   │   ├── urls.py             # URL routing
+│   │   ├── disease_detection.py # Plant.ID API integration
+│   │   ├── weather_prediction.py # Weather analysis
+│   │   ├── recommendations.py  # AI recommendation engine
+│   │   ├── models.py           # Django data models
+│   │   └── migrations/         # Database migrations
+│   ├── db.sqlite3              # Shared SQLite database
+│   ├── manage.py               # Django management
+│   ├── requirements.txt        # Python dependencies
+│   ├── Dockerfile              # Docker container for Django
+│   └── .dockerignore           # Docker ignore rules
+├── 📁 .venv/                   # Python virtual environment
+├── 📁 .git/                    # Git repository data
+├── .env                        # Main environment variables
+├── .env.example                # Environment template
+├── .gitignore                  # Git ignore rules
+├── .dockerignore               # Docker ignore rules
+├── Dockerfile                  # Main Docker container (Node.js + Frontend)
+├── docker-compose.yml          # Multi-service Docker orchestration
+├── render.yaml                 # Render.com deployment config
+├── package.json                # Root NPM scripts & dependencies
+├── setup-dev.sh               # Development environment setup
+├── start-services.sh           # Multi-service startup script
+├── test-integration.sh         # Integration testing script
+├── django_view_example.py      # Django reference example
 └── README.md                   # Project overview
 ```
 
