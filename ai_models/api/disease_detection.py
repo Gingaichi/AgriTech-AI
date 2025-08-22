@@ -45,8 +45,7 @@ class DiseaseDetector:
             
             payload = {
                 "images": [encoded_image],
-                "modifiers": {"similar_images": True},
-                "plant_details": ["common_names", "url", "wiki_description", "taxonomy"]
+                "similar_images": True
             }
             
             # Make API request
@@ -90,7 +89,7 @@ class DiseaseDetector:
                 }
             
             # Process response
-            if response.status_code == 200 and data.get("result"):
+            if response.status_code in [200, 201] and data.get("result"):
                 result_data = data["result"]
                 
                 # Check if image contains a plant
